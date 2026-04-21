@@ -39,7 +39,7 @@ Targets:
   make install-bin     Install binary to $(DESTDIR)$(BINDIR)
   make install-data    Install data assets to $(DESTDIR)$(DATADIR)/$(DATA_APP_NAME)/
   make uninstall       Remove installed binary and data
-  make upgrade         On-demand-aware: rebuild + install; if a resident (`-r`) instance is running, stop it + restart with captured args
+  make upgrade         On-demand-aware: rebuild + install; if any drawer instance is running (resident or transient), stop + restart with captured args
   make sonar           Run SonarQube scan (requires sonar-scanner + .env)
   make clean           cargo clean
 
@@ -126,10 +126,16 @@ uninstall:
 # ─────────────────────────────────────────────────────────────────────
 #
 # The drawer is usually spawned per-click from the dock's launcher
-# button, not resident. If no running instance is found, we just
+# button, not resident. If no running instance is found we just
 # rebuild + install — the user's next launch picks up the new binary.
-# If a resident (`-r`) instance IS running, capture its args via
-# --dump-args, stop, install, restart.
+# If ANY instance is running (whether resident `-r` or a still-open
+# transient launch) we capture args via --dump-args, stop, install,
+# and restart with the captured args.
+#
+# Linux-only: `pidof` comes from procps-ng and is GNU/Linux-specific.
+# The drawer targets Hyprland + Sway (Linux Wayland compositors), so
+# cross-platform Makefile support is out of scope — if that ever
+# changes, a /proc-based or `pgrep`-based fallback goes here.
 upgrade: build-release
 	@RUNNING_PIDS="$$(pidof -c $(BIN_NAME) 2>/dev/null || true)"; \
 	if [ -n "$$RUNNING_PIDS" ]; then \
@@ -138,9 +144,20 @@ upgrade: build-release
 		for pid in $$RUNNING_PIDS; do \
 			target/release/$(BIN_NAME) --dump-args "$$pid" >> "$$ARGS_FILE" || exit 1; \
 		done; \
-		echo "Resident instance(s) running: $$RUNNING_PIDS — stopping before install"; \
+		echo "Running instance(s): $$RUNNING_PIDS — stopping before install"; \
 		kill $$RUNNING_PIDS 2>/dev/null || true; \
 		sleep 1; \
+		STILL_RUNNING="$$(pidof -c $(BIN_NAME) 2>/dev/null || true)"; \
+		if [ -n "$$STILL_RUNNING" ]; then \
+			echo "Warning: still running after SIGTERM: $$STILL_RUNNING — escalating to SIGKILL"; \
+			kill -9 $$STILL_RUNNING 2>/dev/null || true; \
+			sleep 1; \
+			STILL_RUNNING="$$(pidof -c $(BIN_NAME) 2>/dev/null || true)"; \
+			test -z "$$STILL_RUNNING" || { \
+				echo "ERROR: failed to stop $$STILL_RUNNING after SIGKILL; aborting install to avoid file-in-use"; \
+				exit 1; \
+			}; \
+		fi; \
 		$(MAKE) install-bin install-data || exit 1; \
 		if [ -s "$$ARGS_FILE" ]; then \
 			while IFS= read -r args; do \
