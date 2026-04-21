@@ -160,10 +160,19 @@ upgrade: build-release
 		fi; \
 		$(MAKE) install-bin install-data || exit 1; \
 		if [ -s "$$ARGS_FILE" ]; then \
-			while IFS= read -r args; do \
-				echo "Restarting with captured args: $$args"; \
-				setsid sh -c "$$args" </dev/null >/dev/null 2>&1 & \
-			done < "$$ARGS_FILE"; \
+			if [ "$$(id -u)" -eq 0 ]; then \
+				echo "Refusing to replay captured drawer args as root — the captured"; \
+				echo "command came from the desktop user's process and running it via"; \
+				echo "sh -c under elevated privileges would start the drawer in the"; \
+				echo "wrong user context (and execute any desktop-env-derived values"; \
+				echo "in that captured arg string). Install finished; restart the"; \
+				echo "drawer manually from your desktop session."; \
+			else \
+				while IFS= read -r args; do \
+					echo "Restarting with captured args: $$args"; \
+					setsid sh -c "$$args" </dev/null >/dev/null 2>&1 & \
+				done < "$$ARGS_FILE"; \
+			fi; \
 		fi; \
 	else \
 		echo "No running instance — installing; next drawer launch picks up the new binary"; \
