@@ -1,0 +1,164 @@
+window {
+    background-color: rgba(22, 22, 30, 0.88);
+    color: #e8e8e8;
+}
+
+/* Multi-monitor click-catcher backdrop. One of these is created per
+ * non-drawer monitor (issue #55); clicking any closes the drawer.
+ * The slight black tint matches the macOS Launchpad behavior of
+ * dimming the entire desktop while the launcher is open, and gives
+ * the user a visual cue that "drawer is active" across all monitors.
+ *
+ * Note: pointer events only reach this surface when the drawer is
+ * launched with `-k` (OnDemand keyboard mode). With Exclusive
+ * keyboard (the default) Hyprland routes all input to the drawer's
+ * own surface and clicks on other monitors are dropped. */
+window.drawer-backdrop {
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+/* Search entry — large, rounded, centered */
+.drawer-search {
+    font-size: 18px;
+    padding: 12px 20px;
+    margin: 20px 25%;
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    min-height: 24px;
+}
+.drawer-search:focus {
+    border-color: rgba(100, 149, 237, 0.6);
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Section wells — minimal chrome, content centered */
+.section-well {
+    padding: 8px;
+    margin: 0;
+}
+
+/* App grid buttons — minimal chrome, icon above label */
+.app-button {
+    min-height: 0;
+    min-width: 0;
+    padding: 6px;
+    border-radius: 8px;
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+.app-button:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+.app-button:focus {
+    background-color: rgba(100, 149, 237, 0.25);
+    outline: 2px solid rgba(100, 149, 237, 0.6);
+    outline-offset: -2px;
+}
+.app-button image {
+    margin: 0;
+    padding: 0;
+}
+.app-button label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 2px;
+}
+
+/* Invisible spacers between pinned and app rows */
+.pinned-row-spacer {
+    min-height: 0;
+    min-width: 0;
+    opacity: 0;
+}
+
+/* Category buttons */
+#category-button {
+    margin: 4px 8px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.8);
+}
+#category-button:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+#category-button:focus {
+    outline: 2px solid rgba(100, 149, 237, 0.6);
+    outline-offset: -2px;
+    background-color: rgba(100, 149, 237, 0.15);
+}
+.category-selected {
+    background-color: rgba(100, 149, 237, 0.3);
+    border-color: rgba(100, 149, 237, 0.6);
+    color: #ffffff;
+}
+
+/* File search results — columnar list */
+.file-list-header {
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.5px;
+}
+.file-result-row {
+    padding: 4px 8px;
+    border-radius: 6px;
+    min-height: 0;
+}
+.file-result-row:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+.file-result-row:focus {
+    background-color: rgba(100, 149, 237, 0.2);
+    outline: 2px solid rgba(100, 149, 237, 0.5);
+    outline-offset: -2px;
+}
+.file-result-name {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.9);
+}
+.file-result-path {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* Power bar */
+.power-bar {
+    margin-top: 12px;
+    padding: 8px;
+}
+
+/* Section headers inside the well */
+.section-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.5px;
+}
+
+/* Status label */
+.status-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 6px;
+}
+
+/* Pin indicator dot — left of pinned app label */
+.pin-badge {
+    background-color: rgba(100, 149, 237, 0.7);
+    border-radius: 50%;
+    min-width: 8px;
+    min-height: 8px;
+    margin-top: 1px;
+}
+
+/* FlowBox children spacing */
+flowboxchild {
+    padding: 4px;
+}

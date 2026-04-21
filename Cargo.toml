@@ -1,0 +1,47 @@
+[package]
+name = "nwg-drawer"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+description = "Launchpad-style application launcher for Hyprland, Sway, and any Wayland compositor with layer-shell. Rust port with shared pin file with nwg-dock, file search, math evaluation, and graceful fallback on unsupported compositors (Niri, river, Openbox)."
+readme = "README.md"
+repository = "https://github.com/jasonherald/nwg-drawer"
+keywords = ["hyprland", "sway", "launcher", "wayland", "gtk4"]
+categories = ["gui", "command-line-utilities"]
+
+[[bin]]
+name = "nwg-drawer"
+path = "src/main.rs"
+
+[dependencies]
+# Shared library (library + binaries all on the 0.3.x line)
+nwg-common = "0.3"
+
+# GTK4 + Wayland layer shell
+gtk4 = "0.10"
+gtk4-layer-shell = "0.7"
+
+# Serialization (preferred-apps config, pin-file format)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# File watching (CSS hot-reload, pin-file inotify)
+notify = "8"
+
+# Unix signals
+nix = { version = "0.31", features = ["signal", "process", "fs"] }
+
+# Math expression evaluation (search-bar calculator).
+# Migrated off `meval` because its nom 1.2.4 transitive dep was unmaintained.
+exmex = "0.20"
