@@ -136,30 +136,129 @@ uninstall:
 # The drawer targets Hyprland + Sway (Linux Wayland compositors), so
 # cross-platform Makefile support is out of scope — if that ever
 # changes, a /proc-based or `pgrep`-based fallback goes here.
+#
+# Install-target validation (issue #24): before killing anything,
+# resolve /proc/$PID/exe for each running drawer and compare against
+# where this upgrade would install ($(BINDIR)/$(BIN_NAME)). If they
+# don't match — usually because the user installed to ~/.cargo/bin
+# but invoked upgrade without re-passing PREFIX/BINDIR, so we'd try
+# to install to /usr/local and fail on permission — we abort with a
+# helpful error BEFORE touching the drawer. Previously the recipe
+# killed the drawer first and then failed the install, leaving the
+# desktop session with no running drawer and no binary update.
+#
+# Atomicity: recipe order is validate → capture args → install →
+# kill → restart. Install happens while the drawer is still running
+# (Linux's mmap semantics mean replacing the binary file via
+# `install`'s unlink+write doesn't disturb the running process's
+# loaded pages). If install fails, the drawer is never killed.
+#
+# PID identity validation (CodeRabbit follow-up): we capture
+# `/proc/$PID/stat` field 22 (starttime — clock ticks since boot)
+# alongside each pid at discovery, and re-verify it matches before
+# sending SIGTERM and SIGKILL. Starttime is kernel-authoritative
+# and unique per (pid, boot), so a reused pid with a different
+# process attached gets dropped from the kill list with a
+# 'no longer our drawer' message rather than SIGKILLed blindly.
+#
+# --dump-args failure handling: a failure is only swallowed when
+# the pid has actually disappeared (no `/proc/$PID/exe`). If
+# --dump-args fails on a still-live drawer that's a real bug —
+# fail-fast with an explicit error rather than silently killing
+# the drawer without capturing its args.
 upgrade: build-release
 	@RUNNING_PIDS="$$(pidof -c $(BIN_NAME) 2>/dev/null || true)"; \
 	if [ -n "$$RUNNING_PIDS" ]; then \
-		ARGS_FILE="$$(mktemp)" || exit 1; \
-		trap 'rm -f "$$ARGS_FILE"' EXIT; \
+		INSTALL_TARGET="$(DESTDIR)$(BINDIR)/$(BIN_NAME)"; \
+		INSTALL_TARGET_REAL="$$(readlink -f "$$INSTALL_TARGET" 2>/dev/null || echo "$$INSTALL_TARGET")"; \
 		for pid in $$RUNNING_PIDS; do \
-			target/release/$(BIN_NAME) --dump-args "$$pid" >> "$$ARGS_FILE" || exit 1; \
-		done; \
-		echo "Running instance(s): $$RUNNING_PIDS — stopping before install"; \
-		kill $$RUNNING_PIDS 2>/dev/null || true; \
-		sleep 1; \
-		STILL_RUNNING="$$(pidof -c $(BIN_NAME) 2>/dev/null || true)"; \
-		if [ -n "$$STILL_RUNNING" ]; then \
-			echo "Warning: still running after SIGTERM: $$STILL_RUNNING — escalating to SIGKILL"; \
-			kill -9 $$STILL_RUNNING 2>/dev/null || true; \
-			sleep 1; \
-			STILL_RUNNING="$$(pidof -c $(BIN_NAME) 2>/dev/null || true)"; \
-			test -z "$$STILL_RUNNING" || { \
-				echo "ERROR: failed to stop $$STILL_RUNNING after SIGKILL; aborting install to avoid file-in-use"; \
+			RUNNING_EXE="$$(readlink -f "/proc/$$pid/exe" 2>/dev/null)"; \
+			if [ -z "$$RUNNING_EXE" ]; then \
+				if [ -d "/proc/$$pid" ]; then \
+					echo "ERROR: unable to resolve /proc/$$pid/exe for live drawer pid $$pid"; \
+					echo "       (process is alive but its exe symlink is unreadable — refusing to proceed"; \
+					echo "        without install-target validation)"; \
+					exit 1; \
+				fi; \
+				continue; \
+			fi; \
+			if [ "$$RUNNING_EXE" != "$$INSTALL_TARGET_REAL" ]; then \
+				RUNNING_BINDIR="$$(dirname "$$RUNNING_EXE")"; \
+				RUNNING_PREFIX="$$(dirname "$$RUNNING_BINDIR")"; \
+				echo "ERROR: running drawer (pid $$pid) is installed at"; \
+				echo "         $$RUNNING_EXE"; \
+				echo "       but 'make upgrade' would install to"; \
+				echo "         $$INSTALL_TARGET"; \
+				echo ""; \
+				echo "       Drawer NOT killed — a prefix-mismatched upgrade would leave"; \
+				echo "       you with no running drawer and no new binary."; \
+				echo ""; \
+				echo "       Re-run with PREFIX/BINDIR matching the running binary:"; \
+				echo "         make upgrade PREFIX=$$RUNNING_PREFIX BINDIR=$$RUNNING_BINDIR"; \
+				echo "       (or stop the drawer manually and re-run make install)."; \
 				exit 1; \
-			}; \
-		fi; \
+			fi; \
+		done; \
+		ARGS_FILE="$$(mktemp)" || exit 1; \
+		RUNNING_INFO="$$(mktemp)" || exit 1; \
+		trap 'rm -f "$$ARGS_FILE" "$$RUNNING_INFO"' EXIT; \
+		for pid in $$RUNNING_PIDS; do \
+			START_TIME="$$(sed 's/.*) //' "/proc/$$pid/stat" 2>/dev/null | awk '{print $$20}' || true)"; \
+			test -n "$$START_TIME" || continue; \
+			if ! DUMP_OUT="$$(target/release/$(BIN_NAME) --dump-args "$$pid" 2>/dev/null)"; then \
+				ACTUAL_START="$$(sed 's/.*) //' "/proc/$$pid/stat" 2>/dev/null | awk '{print $$20}' || true)"; \
+				ACTUAL_EXE="$$(readlink -f "/proc/$$pid/exe" 2>/dev/null || true)"; \
+				if [ -n "$$ACTUAL_START" ] && [ "$$ACTUAL_START" = "$$START_TIME" ] && \
+				   [ "$$ACTUAL_EXE" = "$$INSTALL_TARGET_REAL" ]; then \
+					echo "ERROR: --dump-args failed for live drawer pid $$pid"; \
+					exit 1; \
+				fi; \
+				continue; \
+			fi; \
+			printf "%s\t%s\n" "$$pid" "$$DUMP_OUT" >> "$$ARGS_FILE" || exit 1; \
+			echo "$$pid $$START_TIME" >> "$$RUNNING_INFO" || exit 1; \
+		done; \
 		$(MAKE) install-bin install-data || exit 1; \
-		if [ -s "$$ARGS_FILE" ]; then \
+		VALIDATED_PIDS=""; \
+		while IFS=' ' read -r pid start_time; do \
+			ACTUAL_START="$$(sed 's/.*) //' "/proc/$$pid/stat" 2>/dev/null | awk '{print $$20}' || true)"; \
+			if [ -n "$$ACTUAL_START" ] && [ "$$ACTUAL_START" = "$$start_time" ]; then \
+				kill "$$pid" 2>/dev/null || true; \
+				VALIDATED_PIDS="$$VALIDATED_PIDS $$pid"; \
+			else \
+				echo "Skipping pid $$pid — no longer our drawer (starttime changed or process exited between capture and kill)"; \
+			fi; \
+		done < "$$RUNNING_INFO"; \
+		if [ -n "$$VALIDATED_PIDS" ]; then \
+			echo "Sent SIGTERM to:$$VALIDATED_PIDS"; \
+			sleep 1; \
+			STILL_RUNNING=""; \
+			for pid in $$VALIDATED_PIDS; do \
+				START_TIME="$$(grep "^$$pid " "$$RUNNING_INFO" | awk '{print $$2}')"; \
+				ACTUAL_START="$$(sed 's/.*) //' "/proc/$$pid/stat" 2>/dev/null | awk '{print $$20}' || true)"; \
+				if [ -n "$$ACTUAL_START" ] && [ "$$ACTUAL_START" = "$$START_TIME" ]; then \
+					kill -9 "$$pid" 2>/dev/null || true; \
+					STILL_RUNNING="$$STILL_RUNNING $$pid"; \
+				fi; \
+			done; \
+			if [ -n "$$STILL_RUNNING" ]; then \
+				echo "Escalated to SIGKILL:$$STILL_RUNNING"; \
+				sleep 1; \
+				FINAL_ALIVE=""; \
+				for pid in $$STILL_RUNNING; do \
+					START_TIME="$$(grep "^$$pid " "$$RUNNING_INFO" | awk '{print $$2}')"; \
+					ACTUAL_START="$$(sed 's/.*) //' "/proc/$$pid/stat" 2>/dev/null | awk '{print $$20}' || true)"; \
+					if [ -n "$$ACTUAL_START" ] && [ "$$ACTUAL_START" = "$$START_TIME" ]; then \
+						FINAL_ALIVE="$$FINAL_ALIVE $$pid"; \
+					fi; \
+				done; \
+				test -z "$$FINAL_ALIVE" || { \
+					echo "ERROR: failed to stop$$FINAL_ALIVE after SIGKILL; binary installed but drawer still holds old mmap"; \
+					exit 1; \
+				}; \
+			fi; \
+		fi; \
+		if [ -n "$$VALIDATED_PIDS" ] && [ -s "$$ARGS_FILE" ]; then \
 			if [ "$$(id -u)" -eq 0 ]; then \
 				echo "Refusing to replay captured drawer args as root — the captured"; \
 				echo "command came from the desktop user's process and running it via"; \
@@ -168,10 +267,12 @@ upgrade: build-release
 				echo "in that captured arg string). Install finished; restart the"; \
 				echo "drawer manually from your desktop session."; \
 			else \
-				while IFS= read -r args; do \
+				for pid in $$VALIDATED_PIDS; do \
+					args="$$(awk -v p="$$pid" 'BEGIN{FS="\t"} $$1==p{sub(/^[^\t]*\t/, ""); print; exit}' "$$ARGS_FILE")"; \
+					test -n "$$args" || continue; \
 					echo "Restarting with captured args: $$args"; \
 					setsid sh -c "$$args" </dev/null >/dev/null 2>&1 & \
-				done < "$$ARGS_FILE"; \
+				done; \
 			fi; \
 		fi; \
 	else \
