@@ -205,13 +205,17 @@ upgrade: build-release
 		for pid in $$RUNNING_PIDS; do \
 			START_TIME="$$(awk '{print $$22}' "/proc/$$pid/stat" 2>/dev/null || true)"; \
 			test -n "$$START_TIME" || continue; \
-			if ! target/release/$(BIN_NAME) --dump-args "$$pid" >> "$$ARGS_FILE"; then \
-				if [ -e "/proc/$$pid/exe" ]; then \
+			if ! DUMP_OUT="$$(target/release/$(BIN_NAME) --dump-args "$$pid" 2>/dev/null)"; then \
+				ACTUAL_START="$$(awk '{print $$22}' "/proc/$$pid/stat" 2>/dev/null || true)"; \
+				ACTUAL_EXE="$$(readlink -f "/proc/$$pid/exe" 2>/dev/null || true)"; \
+				if [ -n "$$ACTUAL_START" ] && [ "$$ACTUAL_START" = "$$START_TIME" ] && \
+				   [ "$$ACTUAL_EXE" = "$$INSTALL_TARGET_REAL" ]; then \
 					echo "ERROR: --dump-args failed for live drawer pid $$pid"; \
 					exit 1; \
 				fi; \
 				continue; \
 			fi; \
+			printf "%s\t%s\n" "$$pid" "$$DUMP_OUT" >> "$$ARGS_FILE"; \
 			echo "$$pid $$START_TIME" >> "$$RUNNING_INFO"; \
 		done; \
 		$(MAKE) install-bin install-data || exit 1; \
@@ -254,7 +258,7 @@ upgrade: build-release
 				}; \
 			fi; \
 		fi; \
-		if [ -s "$$ARGS_FILE" ]; then \
+		if [ -n "$$VALIDATED_PIDS" ] && [ -s "$$ARGS_FILE" ]; then \
 			if [ "$$(id -u)" -eq 0 ]; then \
 				echo "Refusing to replay captured drawer args as root — the captured"; \
 				echo "command came from the desktop user's process and running it via"; \
@@ -263,10 +267,12 @@ upgrade: build-release
 				echo "in that captured arg string). Install finished; restart the"; \
 				echo "drawer manually from your desktop session."; \
 			else \
-				while IFS= read -r args; do \
+				for pid in $$VALIDATED_PIDS; do \
+					args="$$(awk -v p="$$pid" 'BEGIN{FS="\t"} $$1==p{sub(/^[^\t]*\t/, ""); print; exit}' "$$ARGS_FILE")"; \
+					test -n "$$args" || continue; \
 					echo "Restarting with captured args: $$args"; \
 					setsid sh -c "$$args" </dev/null >/dev/null 2>&1 & \
-				done < "$$ARGS_FILE"; \
+				done; \
 			fi; \
 		fi; \
 	else \
