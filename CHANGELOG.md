@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > full pre-split history is preserved in the monorepo's git log; this file
 > only documents changes from v0.3.0 onward.
 
+## [Unreleased]
+
+### Removed
+
+- Dead `src/ui/pinned.rs` module. The file was never declared in `mod.rs`,
+  not referenced anywhere, and duplicated the live pinned-row logic in
+  `well_builder.rs`. Resolves #29.
+
 ## [0.3.0] — 2026-04-20
 
 First standalone release. Extracts the drawer binary from
