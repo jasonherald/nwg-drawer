@@ -45,3 +45,7 @@ nix = { version = "0.31", features = ["signal", "process", "fs"] }
 # Math expression evaluation (search-bar calculator).
 # Migrated off `meval` because its nom 1.2.4 transitive dep was unmaintained.
 exmex = "0.20"
+
+[dev-dependencies]
+# Filesystem fixtures for unit tests (walk_directory, etc.).
+tempfile = "3"
