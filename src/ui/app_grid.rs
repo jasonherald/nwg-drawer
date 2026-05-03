@@ -171,16 +171,26 @@ fn connect_pin(
     gesture.set_button(3);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
-        let mut s = state_ref.borrow_mut();
-        let was_pinned = pinning::is_pinned(&s.pinned, &id);
-        if was_pinned {
-            pinning::unpin_item(&mut s.pinned, &id);
-        } else {
-            pinning::pin_item(&mut s.pinned, &id);
-        }
-        if let Err(e) = pinning::save_pinned(&s.pinned, &path) {
+
+        // Phase 1: mutate in-memory state under a tight borrow, snapshot the
+        // new pin list, then release the borrow before file I/O.
+        let (was_pinned, snapshot) = {
+            let mut s = state_ref.borrow_mut();
+            let was_pinned = pinning::is_pinned(&s.pinned, &id);
+            if was_pinned {
+                pinning::unpin_item(&mut s.pinned, &id);
+            } else {
+                pinning::pin_item(&mut s.pinned, &id);
+            }
+            (was_pinned, s.pinned.clone())
+        };
+
+        // Phase 2: I/O outside any borrow — a hypothetical re-entrant signal
+        // during save can't deadlock against state.
+        if let Err(e) = pinning::save_pinned(&snapshot, &path) {
             log::error!("Failed to save pinned state: {}", e);
-            // Rollback in-memory state to stay in sync with disk
+            // Rollback in-memory state to stay in sync with disk.
+            let mut s = state_ref.borrow_mut();
             if was_pinned {
                 pinning::pin_item(&mut s.pinned, &id);
             } else {
@@ -189,7 +199,6 @@ fn connect_pin(
             return;
         }
         log::info!("{} {}", if was_pinned { "Unpinned" } else { "Pinned" }, id);
-        drop(s);
         rebuild();
     });
     button.add_controller(gesture);

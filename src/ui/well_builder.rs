@@ -237,18 +237,26 @@ fn build_pinned_button(
     gesture.set_button(3);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
-        let mut s = state_ref.borrow_mut();
-        if pinning::unpin_item(&mut s.pinned, &id) {
-            if let Err(e) = pinning::save_pinned(&s.pinned, &path) {
-                log::error!("Failed to save pinned state: {}", e);
-                // Restore the pin so UI stays in sync with disk
-                s.pinned.push(id.clone());
+
+        // Phase 1: unpin in-memory under a tight borrow, snapshot the new pin
+        // list, then release the borrow before file I/O.
+        let snapshot = {
+            let mut s = state_ref.borrow_mut();
+            if !pinning::unpin_item(&mut s.pinned, &id) {
                 return;
             }
-            log::info!("Unpinned {}", id);
-            drop(s);
-            rebuild();
+            s.pinned.clone()
+        };
+
+        // Phase 2: I/O outside any borrow.
+        if let Err(e) = pinning::save_pinned(&snapshot, &path) {
+            log::error!("Failed to save pinned state: {}", e);
+            // Restore the pin so UI stays in sync with disk.
+            state_ref.borrow_mut().pinned.push(id.clone());
+            return;
         }
+        log::info!("Unpinned {}", id);
+        rebuild();
     });
     button.add_controller(gesture);
 

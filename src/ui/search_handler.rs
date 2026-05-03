@@ -1,21 +1,23 @@
 use crate::ui::well_builder;
 use crate::ui::well_context::WellContext;
 use gtk4::prelude::*;
-use std::cell::RefCell;
+use std::cell::Cell;
 use std::rc::Rc;
 
 /// Connects the search entry to the well, handling search/clear/command modes.
 pub fn connect_search(ctx: &WellContext) {
     let search_entry = ctx.search_entry.clone();
     let ctx = ctx.clone();
-    let in_search_mode = Rc::new(RefCell::new(false));
+    // `Cell` (not `RefCell`) — the flag is `Copy`, so reads/writes can never
+    // panic on overlapping borrows (matches `focus_pending` in listeners.rs).
+    let in_search_mode = Rc::new(Cell::new(false));
 
     search_entry.connect_search_changed(move |entry| {
         let phrase = entry.text().to_string();
 
         if phrase.is_empty() {
-            if *in_search_mode.borrow() {
-                *in_search_mode.borrow_mut() = false;
+            if in_search_mode.get() {
+                in_search_mode.set(false);
                 ctx.state.borrow_mut().active_search.clear();
                 well_builder::restore_normal_well(&ctx);
             }
@@ -23,7 +25,7 @@ pub fn connect_search(ctx: &WellContext) {
             return;
         }
 
-        *in_search_mode.borrow_mut() = true;
+        in_search_mode.set(true);
 
         // Command mode (: prefix) — clear search state so rebuilds don't restore stale results
         if phrase.starts_with(':') {

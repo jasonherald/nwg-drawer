@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Tightened `RefCell` borrow discipline across the category-button, search,
+  and pin-toggle callbacks. Sequential `borrow_mut` calls now coalesce into a
+  single block scope; pin/unpin handlers snapshot the pin list and release
+  the borrow before `save_pinned` I/O so a hypothetical re-entrant signal
+  during save can't deadlock. `in_search_mode` switched from
+  `Rc<RefCell<bool>>` to `Rc<Cell<bool>>` to match `focus_pending` and remove
+  the borrow-panic surface for a `Copy`-only flag. New doc-comment on
+  `DrawerState` documents the borrow → drop → rebuild rule. Resolves #30.
+
 ### Removed
 
 - Dead `src/ui/pinned.rs` module. The file was never declared in `mod.rs`,

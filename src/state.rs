@@ -25,6 +25,35 @@ impl AppRegistry {
 }
 
 /// Mutable state for the drawer application.
+///
+/// Shared via `Rc<RefCell<DrawerState>>` across every callback in the UI.
+///
+/// **Borrow discipline.** Every callback that mutates `DrawerState` must:
+///
+/// 1. Take `borrow_mut` in a tight block scope
+///    (`{ let mut s = state.borrow_mut(); … }`), coalescing any related
+///    mutations into that single scope.
+/// 2. Drop the borrow **before** calling any function that can re-enter the
+///    GTK main loop — most notably the rebuild callback created by
+///    [`crate::ui::well_builder::build_rebuild_callback`], which schedules a
+///    re-borrow via `glib::idle_add_local_once`. A borrow held across the
+///    rebuild path panics on the second `borrow_mut`.
+/// 3. Drop the borrow **before** file I/O (e.g. `nwg_common::pinning::save_pinned`)
+///    where feasible. Snapshot whatever the I/O needs, release, then save.
+///    A panic during I/O while the borrow is held leaves the cell poisoned
+///    for the rest of the process; doing the I/O outside the borrow keeps
+///    the cell recoverable and protects against any future re-entrant signal
+///    delivered while the syscall is in flight.
+///
+/// Canonical examples:
+/// - [`crate::ui::app_grid::connect_pin`] — pin/unpin toggle: borrow, mutate,
+///   snapshot, release; save outside; rollback under a fresh borrow on error.
+/// - [`crate::ui::well_builder::build_pinned_button`] — unpin from the pinned
+///   row: same shape.
+///
+/// Booleans owned by callbacks (e.g. `in_search_mode`, `focus_pending`) should
+/// use `Rc<Cell<bool>>` rather than `Rc<RefCell<bool>>` — `Cell` is `Copy`-only
+/// and can't panic on overlapping borrows.
 pub struct DrawerState {
     /// Application registry (desktop entries, categories).
     pub apps: AppRegistry,
