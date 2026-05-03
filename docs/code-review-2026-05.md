@@ -384,10 +384,18 @@ Total: ~49h, or 5–10 working days of focused refactoring.
 After review, each issue can be filed via:
 
 ```bash
+# Replace `5` with the issue number you want to extract.
 gh issue create \
   --title "<issue title>" \
   --label "<labels>" \
-  --body "$(sed -n '/^#### Issue N:/,/^---$/p' docs/code-review-2026-05.md)"
+  --body "$(awk -v n=5 '
+    $0 ~ "^#### Issue " n ":" { capture = 1 }
+    capture && /^---$/ { exit }
+    capture && /^#### Issue [0-9]+:/ && $0 !~ "^#### Issue " n ":" { exit }
+    capture { print }
+  ' docs/code-review-2026-05.md)"
 ```
 
-Or driven by a small script that walks this doc. Each filed issue should link back to this document (`docs/code-review-2026-05.md`) for full context.
+The awk extractor stops at whichever comes first — the next `#### Issue N:` heading or the `---` wave separator — so each invocation captures exactly one issue's body. (The earlier `sed -n '/Issue N:/,/^---$/p'` slurped every issue from N to the end of the wave because `---` only appears between waves, not between issues.)
+
+Or drive the whole list from a small script that walks this doc. Each filed issue should link back here (`docs/code-review-2026-05.md`) for full context.
