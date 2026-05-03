@@ -1,3 +1,5 @@
+mod commands;
+
 use crate::config::DrawerConfig;
 use crate::ui::well_builder;
 use crate::{desktop_loader, watcher};
@@ -186,7 +188,7 @@ pub fn setup_signal_poller(
 
     glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
         while let Ok(cmd) = rx.try_recv() {
-            handle_window_command(&win, &entry, &ctx, &pending, cmd, resident);
+            commands::handle_window_command(&win, &entry, &ctx, &pending, cmd, resident);
         }
         glib::ControlFlow::Continue
     });
@@ -238,74 +240,6 @@ fn close_if_baseline_set(baseline: &Rc<RefCell<Option<String>>>, on_launch: &Rc<
     }
 }
 
-/// What to do with the window for a given command.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WindowOp {
-    Show,
-    Hide,
-    Close,
-}
-
-/// Pure decision function: determines the window operation for a command.
-/// Testable without GTK objects.
-fn resolve_window_op(cmd: &WindowCommand, visible: bool, resident: bool) -> WindowOp {
-    match cmd {
-        WindowCommand::Show => WindowOp::Show,
-        WindowCommand::Hide => {
-            if resident {
-                WindowOp::Hide
-            } else {
-                WindowOp::Close
-            }
-        }
-        WindowCommand::Toggle => {
-            if visible {
-                if resident {
-                    WindowOp::Hide
-                } else {
-                    WindowOp::Close
-                }
-            } else {
-                WindowOp::Show
-            }
-        }
-        WindowCommand::Quit => WindowOp::Close,
-    }
-}
-
-/// Processes a single window command from the signal handler.
-fn handle_window_command(
-    win: &gtk4::ApplicationWindow,
-    search_entry: &gtk4::SearchEntry,
-    well_ctx: &crate::ui::well_context::WellContext,
-    focus_pending: &Rc<Cell<bool>>,
-    cmd: WindowCommand,
-    resident: bool,
-) {
-    match resolve_window_op(&cmd, win.is_visible(), resident) {
-        WindowOp::Show => {
-            // Clear search/category state so the drawer opens fresh.
-            // Don't rebuild yet — that happens in complete_show after focus.
-            clear_drawer_state(search_entry);
-            focus_pending.set(true);
-            win.set_visible(true);
-            // Fallback: if is_active_notify doesn't fire within 200ms
-            // (e.g. --keyboard-on-demand mode), grab focus anyway.
-            let entry = search_entry.clone();
-            let ctx = well_ctx.clone();
-            let pending = Rc::clone(focus_pending);
-            glib::timeout_add_local_once(std::time::Duration::from_millis(200), move || {
-                if pending.get() {
-                    pending.set(false);
-                    complete_show(&entry, &ctx);
-                }
-            });
-        }
-        WindowOp::Hide => win.set_visible(false),
-        WindowOp::Close => quit_or_hide(win, false),
-    }
-}
-
 /// Called when focus is confirmed (via is_active_notify or timeout fallback).
 /// Grabs focus on the search entry and rebuilds the well if needed.
 fn complete_show(
@@ -319,12 +253,6 @@ fn complete_show(
         well_ctx.state.borrow_mut().active_category.clear();
         well_builder::rebuild_preserving_category(well_ctx);
     }
-}
-
-/// Clears search text before showing. Category clearing and rebuild are
-/// deferred to `complete_show` after focus is confirmed.
-fn clear_drawer_state(search_entry: &gtk4::SearchEntry) {
-    search_entry.set_text("");
 }
 
 /// Quits the application (non-resident) or hides the window (resident).
@@ -364,74 +292,5 @@ fn handle_return(
         let cmd = &text[1..];
         nwg_common::launch::launch_via_compositor(cmd, compositor);
         on_launch();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resident_toggle_hides() {
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Toggle, true, true),
-            WindowOp::Hide
-        );
-    }
-
-    #[test]
-    fn resident_toggle_shows() {
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Toggle, false, true),
-            WindowOp::Show
-        );
-    }
-
-    #[test]
-    fn non_resident_toggle_closes() {
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Toggle, true, false),
-            WindowOp::Close
-        );
-    }
-
-    #[test]
-    fn non_resident_hide_closes() {
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Hide, true, false),
-            WindowOp::Close
-        );
-    }
-
-    #[test]
-    fn resident_hide_hides() {
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Hide, true, true),
-            WindowOp::Hide
-        );
-    }
-
-    #[test]
-    fn show_always_shows() {
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Show, false, false),
-            WindowOp::Show
-        );
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Show, false, true),
-            WindowOp::Show
-        );
-    }
-
-    #[test]
-    fn quit_always_closes() {
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Quit, true, true),
-            WindowOp::Close
-        );
-        assert_eq!(
-            resolve_window_op(&WindowCommand::Quit, true, false),
-            WindowOp::Close
-        );
     }
 }

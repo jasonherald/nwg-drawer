@@ -63,7 +63,9 @@ src/
 ├── config.rs            # clap CLI with CloseButton enum
 ├── state.rs             # DrawerState + AppRegistry sub-struct
 ├── desktop_loader.rs    # Scans .desktop files, multi-category assignment
-├── listeners.rs         # Focus detector, file watcher, signal receiver
+├── listeners.rs         # Focus detector, file watcher, signal receiver wiring
+├── listeners/
+│   └── commands.rs      # WindowOp state machine + GTK command handler + tests
 ├── watcher.rs           # inotify watcher thread (.desktop + pin-file)
 └── ui/
     ├── navigation.rs     # install_grid_nav — capture-phase arrow-key
