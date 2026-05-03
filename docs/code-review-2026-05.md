@@ -368,7 +368,7 @@ The waves above are in priority order. Suggested iteration:
 2. **Wave 2** lands the high-value tests + the latent `shorten_home` bug fix while we have the test fixture mindset (Issues 3–5)
 3. **Wave 3** is the architectural reshape — `main.rs` split, math.rs trim, `WellContext` consistency, listener split, XDG move (Issues 6–10). Do this before Wave 4-6 because subsequent issues touch files this wave moves around.
 4. **Wave 4** is hot-path performance (Issues 11–13). Issue 13 is the biggest in this wave; it can split into 3 PRs if a maintainer wants.
-5. **Wave 5** is magic-number sweeps + module docs (Issues 14–16) — small, low-risk, high readability payoff
+5. **Wave 5** is magic-number sweeps + module docs (Issues 14–16) — small, low-risk, high-readability payoff
 6. **Wave 6** is consolidation + polish (Issues 17–19)
 7. **Wave 7** is coverage backfill + the optional integration test (Issues 20–22)
 
