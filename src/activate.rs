@@ -159,6 +159,18 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
     well.set_margin_top(ui::constants::CONTENT_TOP_MARGIN);
     scrolled.set_child(Some(&well));
 
+    // Async file-search dispatcher. Spawns a single long-running consumer
+    // future on the main loop that receives walked results from worker
+    // threads and applies them to `well`. Per-keystroke `dispatch` calls
+    // bump a generation counter so stale workers get their results dropped.
+    let file_search = Rc::new(ui::file_search::FileSearchDispatcher::new(
+        Rc::clone(&config),
+        well.clone(),
+        status_label.clone(),
+        Rc::clone(&state),
+        Rc::clone(&on_launch),
+    ));
+
     // Shared context for well/category/search builders
     let well_ctx = ui::well_context::WellContext {
         well: well.clone(),
@@ -169,6 +181,7 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
         on_launch: Rc::clone(&on_launch),
         status_label: status_label.clone(),
         search_entry: search_entry.clone(),
+        file_search,
     };
 
     // Categories (above scroll, fixed)

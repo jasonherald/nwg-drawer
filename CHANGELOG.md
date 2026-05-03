@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - RT-signal toggle/show/hide and inotify-driven file-watcher events now
   reach the UI immediately instead of waiting for the old 100 ms poll
   interval. Resolves #40.
+- File search no longer blocks the UI during typing. Each keystroke
+  used to walk every XDG user directory synchronously on the GTK main
+  thread, freezing the search bar for hundreds of milliseconds (or
+  multiple seconds against a heavy `~/Downloads`). The walk now
+  debounces 150 ms after the last keystroke and runs on a worker
+  thread; app-name results and the math evaluator stay instant.
+  Resolves #39.
 
 ### Fixed
 

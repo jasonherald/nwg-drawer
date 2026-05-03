@@ -10,6 +10,10 @@ use std::rc::Rc;
 /// Pinned items go into `pinned_box` (above the ScrolledWindow, fixed).
 /// App grid goes into `well` (inside the ScrolledWindow, scrollable).
 pub fn build_normal_well(ctx: &WellContext) {
+    // Drop any in-flight file-search worker so its results don't land
+    // on the now-normal-view well.
+    ctx.file_search.invalidate();
+
     clear_box(&ctx.well);
     clear_box(&ctx.pinned_box);
 
@@ -80,29 +84,17 @@ pub fn build_search_results(ctx: &WellContext, phrase: &str) {
     // Search results get navigation too (no cross-section targets)
     navigation::install_grid_nav(&app_flow, ctx.config.columns, None, None);
 
-    // File results
+    // File results — dispatched asynchronously. The walk runs on a worker
+    // thread; results appear in `ctx.well` via the consumer future spawned
+    // by `FileSearchDispatcher::new`. Stale results from prior keystrokes
+    // are dropped via the dispatcher's generation counter.
     if !ctx.config.no_fs && phrase.len() > 2 {
-        let file_results = ui::file_search::search_files(
-            phrase,
-            &ctx.config,
-            &ctx.state,
-            Rc::clone(&ctx.on_launch),
-        );
-        // file_search::search_files adds a header + separator before result rows
-        let total_children = count_children(&file_results);
-        let file_count = total_children.saturating_sub(2);
-        if file_count > 0 {
-            ctx.well.append(&divider());
-            ctx.status_label.set_text(&format!(
-                "{} file results | LMB: open | RMB: file manager",
-                file_count
-            ));
-            file_results.set_halign(gtk4::Align::Center);
-            ctx.well.append(&file_results);
-
-            // Up from first file result → back to app search results
-            navigation::install_file_results_nav(&file_results);
-        }
+        ctx.file_search.dispatch(phrase, &ctx.state);
+    } else {
+        // Sub-three-character phrases or `--no-fs` mode: no file search.
+        // Bump the generation so any in-flight worker's results don't
+        // sneak into the well.
+        ctx.file_search.invalidate();
     }
 }
 
@@ -279,23 +271,13 @@ fn clear_box(container: &gtk4::Box) {
     }
 }
 
-fn divider() -> gtk4::Separator {
+pub(super) fn divider() -> gtk4::Separator {
     let sep = gtk4::Separator::new(gtk4::Orientation::Horizontal);
     sep.set_margin_top(super::constants::DIVIDER_VERTICAL_MARGIN);
     sep.set_margin_bottom(super::constants::DIVIDER_VERTICAL_MARGIN);
     sep.set_margin_start(super::constants::DIVIDER_SIDE_MARGIN);
     sep.set_margin_end(super::constants::DIVIDER_SIDE_MARGIN);
     sep
-}
-
-fn count_children(widget: &impl IsA<gtk4::Widget>) -> i32 {
-    let mut count = 0;
-    let mut child = widget.first_child();
-    while let Some(c) = child {
-        count += 1;
-        child = c.next_sibling();
-    }
-    count
 }
 
 /// Which rebuild path to take when refreshing the well.
