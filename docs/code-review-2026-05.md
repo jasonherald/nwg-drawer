@@ -281,7 +281,7 @@ Targeted, not bulk. Specifically:
 
 ### Wave 6 — refactor consolidation
 
-#### Issue 17: Consolidate three duplicated patterns into helpers
+#### Issue 17: Consolidate four duplicated patterns into helpers
 
 - **Severity:** med · **Effort:** S · **Labels:** `refactor`, `cleanup`
 - **Source:** A-F3, A-F4, A-F6, A-F7
