@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin-toggle save failure no longer silently reorders the pinned row — the
   rollback path now restores the unpinned item at its original position
   instead of appending it. Pre-existing latent bug surfaced during #30.
+- File-search path display now correctly handles sibling directories of
+  `$HOME` and the case where `$HOME` is unset. Previously `/home/userfoo/Docs`
+  would render as `~foo/Docs` (sibling of `/home/user`), and an unset `$HOME`
+  caused every path to gain a leading `~`. Resolves #33.
 
 ### Removed
 
