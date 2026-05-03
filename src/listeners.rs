@@ -156,18 +156,34 @@ pub fn setup_file_watcher(
     let ctx = ctx.clone();
 
     glib::spawn_future_local(async move {
-        while let Ok(event) = watch_rx.recv().await {
-            match event {
-                watcher::WatchEvent::DesktopFilesChanged => {
-                    log::info!("Desktop files changed, reloading...");
-                    desktop_loader::load_desktop_entries(&mut ctx.state.borrow_mut());
-                    well_builder::rebuild_preserving_category(&ctx);
-                }
-                watcher::WatchEvent::PinnedChanged => {
-                    log::info!("Pinned file changed, rebuilding...");
-                    ctx.state.borrow_mut().pinned = pinning::load_pinned(&ctx.pinned_file);
-                    well_builder::rebuild_preserving_category(&ctx);
-                }
+        // Coalesce bursts. inotify can fire dozens of events for a single
+        // user-visible change (`watcher::start_watcher` doc spells this
+        // out — package installs are the worst case). Without coalescing,
+        // each event would trigger a synchronous rebuild on the GTK main
+        // loop, thrashing under exactly the workloads the watcher exists
+        // to handle. Pattern: await the first event, then drain everything
+        // that's already accumulated in the channel via `try_recv` (events
+        // that landed during the previous rebuild), then do at most one
+        // reload + rebuild for the whole batch.
+        while let Ok(first) = watch_rx.recv().await {
+            let mut reload_desktop = matches!(first, watcher::WatchEvent::DesktopFilesChanged);
+            let mut reload_pinned = matches!(first, watcher::WatchEvent::PinnedChanged);
+
+            while let Ok(next) = watch_rx.try_recv() {
+                reload_desktop |= matches!(next, watcher::WatchEvent::DesktopFilesChanged);
+                reload_pinned |= matches!(next, watcher::WatchEvent::PinnedChanged);
+            }
+
+            if reload_desktop {
+                log::info!("Desktop files changed, reloading...");
+                desktop_loader::load_desktop_entries(&mut ctx.state.borrow_mut());
+            }
+            if reload_pinned {
+                log::info!("Pinned file changed, rebuilding...");
+                ctx.state.borrow_mut().pinned = pinning::load_pinned(&ctx.pinned_file);
+            }
+            if reload_desktop || reload_pinned {
+                well_builder::rebuild_preserving_category(&ctx);
             }
         }
     });
