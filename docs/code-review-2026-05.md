@@ -200,10 +200,10 @@ Every well rebuild does `state.borrow().apps.entries.clone()`, `id2entry.clone()
 
 Bundle of related clean-ups:
 
-- `app_grid.rs:24,92,144-145`, `well_builder.rs:155,164-165,218-219`, `pinned.rs:32-33,105-106` — hold a single immutable `Ref` across the iteration; hoist `app_dirs`/`gtk_theme_prefix` out of per-entry loops
+- `app_grid.rs:24,92,144-145`, `well_builder.rs:155,164-165,218-219` — hold a single immutable `Ref` across the iteration; hoist `app_dirs`/`gtk_theme_prefix` out of per-entry loops
 - `well_context.rs:17` — `Rc<PathBuf>` → `Rc<Path>` (drops the `.as_ref().clone()` in `well_builder.rs:234`)
 - `main.rs:78,80,103,107,109` — `Rc<Option<PathBuf>>` for `data_home` simplifies to `Option<&Path>` plumbed through
-- `app_grid.rs:19, file_search.rs:15, pinned.rs:16, power_bar.rs:43` — `on_launch: Rc<dyn Fn()>` taken by value should be `&Rc<dyn Fn()>` (matches `build_button`'s pattern)
+- `app_grid.rs:19, file_search.rs:15, power_bar.rs:43` — `on_launch: Rc<dyn Fn()>` taken by value should be `&Rc<dyn Fn()>` (matches `build_button`'s pattern)
 - `listeners.rs:362, search_handler.rs:14` — `entry.text().to_string()` materializes when `&str` would do (`GString` derefs to `&str`)
 - `math.rs:245-260` — `format_result` allocates twice; bind `format!`, slice trim, single `String::from`
 - `well_builder.rs:260-268` — outer + inner clone of `WellContext` inside `build_rebuild_callback`; outer is redundant
@@ -286,10 +286,10 @@ Targeted, not bulk. Specifically:
 - **Severity:** med · **Effort:** S · **Labels:** `refactor`, `cleanup`
 - **Source:** A-F3, A-F4, A-F6, A-F7
 
-Three near-identical patterns sit in three files each:
+Four near-identical patterns to consolidate:
 
-1. **Pin/unpin with rollback** (`app_grid.rs:172-194`, `well_builder.rs:238-252`, `pinned.rs:120-131` — last one goes away with Issue 1) — extract `fn toggle_pin_with_save(state: &mut DrawerState, id: &str, path: &Path) -> io::Result<bool>` that rolls back internally
-2. **Localized name/desc fallback** (`app_grid.rs:93-102`, `well_builder.rs:194-203`, `pinned.rs:81-90`) — extract `fn display_name(e: &DesktopEntry) -> &str` (consider upstreaming to `nwg-common`)
+1. **Pin/unpin with rollback** (`app_grid.rs:172-194`, `well_builder.rs:238-252`) — extract `fn toggle_pin_with_save(state: &mut DrawerState, id: &str, path: &Path) -> io::Result<bool>` that rolls back internally
+2. **Localized name/desc fallback** (`app_grid.rs:93-102`, `well_builder.rs:194-203`) — extract `fn display_name(e: &DesktopEntry) -> &str` (consider upstreaming to `nwg-common`)
 3. **`while let Some(child) = container.first_child() { container.remove(...) }`** (three places) — `well_builder.rs` already has private `clear_box`; promote to `pub(super)` or `ui::dom::clear_box`
 4. **Manual sibling-walk for child counting** (`navigation.rs:305-313`, `well_builder.rs:294-302`) — replace both with `widget.observe_children().n_items()`
 
