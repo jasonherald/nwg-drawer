@@ -72,8 +72,11 @@ impl FileSearchDispatcher {
                     continue;
                 }
                 let count = rows.len();
-                let preferred_apps = state.borrow().preferred_apps.clone();
-                let widget = build_results_widget(&rows, &preferred_apps, &on_launch);
+                // Borrow `preferred_apps` for the build call — `build_results_widget`
+                // takes a reference, so cloning the whole HashMap on the hot path
+                // is wasted work.
+                let state_ref = state.borrow();
+                let widget = build_results_widget(&rows, &state_ref.preferred_apps, &on_launch);
                 widget.set_halign(gtk4::Align::Center);
                 well.append(&super::well_builder::divider());
                 well.append(&widget);

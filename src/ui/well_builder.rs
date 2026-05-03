@@ -17,13 +17,16 @@ pub fn build_normal_well(ctx: &WellContext) {
     clear_box(&ctx.well);
     clear_box(&ctx.pinned_box);
 
-    let pinned = ctx.state.borrow().pinned.clone();
+    // Read just the count out of the borrow; cloning the whole `pinned`
+    // Vec was wasted work since we only need is_empty() / len() for
+    // layout decisions.
+    let pinned_len = ctx.state.borrow().pinned.len();
 
     // Rebuild callback shared by pinned unpin + app grid pin
     let on_rebuild = build_rebuild_callback(ctx);
 
     // Pinned items (above scroll)
-    if !pinned.is_empty() {
+    if pinned_len > 0 {
         let pf = build_pinned_flow(ctx, &on_rebuild);
         pf.set_halign(gtk4::Align::Center);
         ctx.pinned_box.append(&pf);
@@ -35,8 +38,7 @@ pub fn build_normal_well(ctx: &WellContext) {
     ctx.well.append(&flow);
 
     // Install grid navigation on both FlowBoxes.
-    let has_pinned = !pinned.is_empty();
-    let pinned_flow_opt = if has_pinned {
+    let pinned_flow_opt = if pinned_len > 0 {
         ctx.pinned_box
             .first_child()
             .and_then(|w| w.downcast::<gtk4::FlowBox>().ok())
@@ -56,7 +58,7 @@ pub fn build_normal_well(ctx: &WellContext) {
     if let Some(ref pf) = pinned_flow_opt {
         navigation::install_grid_nav(
             pf,
-            ctx.config.columns.min(pinned.len() as u32).max(1),
+            ctx.config.columns.min(pinned_len as u32).max(1),
             None,        // no up target (top of layout)
             Some(&flow), // down target
         );

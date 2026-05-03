@@ -34,6 +34,11 @@ pub fn connect_search(ctx: &WellContext) {
 
         // Command mode (: prefix) — clear search state so rebuilds don't restore stale results
         if let Some(cmd_text) = phrase.strip_prefix(':') {
+            // A previously-typed phrase may have an async file-search worker
+            // still running — bump the dispatcher's generation so its results
+            // get dropped at the consumer instead of landing on this
+            // command-mode well.
+            ctx.file_search.invalidate();
             ctx.state.borrow_mut().active_search.clear();
             while let Some(child) = ctx.well.first_child() {
                 ctx.well.remove(&child);

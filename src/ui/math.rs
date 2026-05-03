@@ -119,16 +119,21 @@ pub(super) fn format_result(value: f64) -> String {
         }
     } else {
         // 6 decimal places, trailing zeros stripped for clean display.
-        // Format once, take a trimmed slice, allocate once via String::from
-        // (was format! + to_string = two allocs).
-        let raw = format!("{:.6}", value);
-        let trimmed = raw.trim_end_matches('0').trim_end_matches('.');
-        // Normalize -0 to 0 (e.g. sin(-pi) rounds to -0)
-        if trimmed == "-0" {
-            "0".to_string()
-        } else {
-            trimmed.to_string()
+        // Format once, mutate the buffer in place via `pop()` — no
+        // second allocation for the trimmed copy.
+        let mut raw = format!("{:.6}", value);
+        while raw.ends_with('0') {
+            raw.pop();
         }
+        if raw.ends_with('.') {
+            raw.pop();
+        }
+        // Normalize -0 to 0 (e.g. sin(-pi) rounds to -0)
+        if raw == "-0" {
+            raw.clear();
+            raw.push('0');
+        }
+        raw
     }
 }
 
