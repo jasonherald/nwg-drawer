@@ -174,7 +174,18 @@ pub fn setup_file_watcher(
         // that's already accumulated in the channel via `try_recv` (events
         // that landed during the previous rebuild), then do at most one
         // reload + rebuild for the whole batch.
-        while let Ok(first) = watch_rx.recv().await {
+        loop {
+            let first = match watch_rx.recv().await {
+                Ok(ev) => ev,
+                Err(e) => {
+                    // Producer (inotify thread) dropped its sender. Either
+                    // the thread panicked / failed to create the watcher —
+                    // worth surfacing — or the process is shutting down,
+                    // in which case the log message goes nowhere harmful.
+                    log::error!("file-watcher channel closed: {e}");
+                    break;
+                }
+            };
             let mut reload_desktop = matches!(first, watcher::WatchEvent::DesktopFilesChanged);
             let mut reload_pinned = matches!(first, watcher::WatchEvent::PinnedChanged);
 
@@ -222,7 +233,18 @@ pub fn setup_signal_poller(
     let rx = sig_rx.clone();
 
     glib::spawn_future_local(async move {
-        while let Ok(cmd) = rx.recv().await {
+        loop {
+            let cmd = match rx.recv().await {
+                Ok(cmd) => cmd,
+                Err(e) => {
+                    // The bridge thread in main.rs drops its sender at
+                    // process shutdown (when the upstream RT-signal mpsc
+                    // disconnects). On the live path this means the
+                    // signal pipeline died — surface it.
+                    log::error!("signal channel closed: {e}");
+                    break;
+                }
+            };
             commands::handle_window_command(&win, &entry, &ctx, &pending, cmd, resident);
         }
     });
