@@ -56,11 +56,15 @@ nwg-drawer --wm uwsm
 
 ```text
 src/
-├── main.rs            # Coordinator (~185 lines)
-├── config.rs          # clap CLI with CloseButton enum
-├── state.rs           # DrawerState + AppRegistry sub-struct
-├── desktop_loader.rs  # Scans .desktop files, multi-category assignment
-├── listeners.rs       # Focus detector, file watcher, signal receiver
+├── main.rs              # Coordinator (~90 lines): args → dirs → activate → run
+├── activate.rs          # GTK activate-time wiring + DrawerInit param bundle
+├── lifecycle.rs         # --open/--close, existing-instance, singleton lock
+├── power_bar_detect.rs  # --pb-auto: detect lock/exit/poweroff/reboot/sleep
+├── config.rs            # clap CLI with CloseButton enum
+├── state.rs             # DrawerState + AppRegistry sub-struct
+├── desktop_loader.rs    # Scans .desktop files, multi-category assignment
+├── listeners.rs         # Focus detector, file watcher, signal receiver
+├── watcher.rs           # inotify watcher thread (.desktop + pin-file)
 └── ui/
     ├── navigation.rs     # install_grid_nav — capture-phase arrow-key
     │                     # traversal across FlowBox grids (app grid,
@@ -77,8 +81,8 @@ src/
     ├── search.rs
     └── window.rs
 
-assets/
-└── drawer.css         # Embedded default CSS via include_str!()
+src/assets/
+└── drawer.css           # Embedded default CSS via include_str!() (loaded by activate.rs)
 ```
 
 ## Conventions
