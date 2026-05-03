@@ -32,7 +32,7 @@ pub fn build_math_result(phrase: &str) -> Option<gtk4::Box> {
     // Don't set focusable(false) — the capture-phase key controller needs
     // the container to participate in event dispatch for arrow key navigation.
 
-    let row = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
+    let row = gtk4::Box::new(gtk4::Orientation::Horizontal, constants::MATH_ROW_SPACING);
     row.set_halign(gtk4::Align::Center);
 
     let label = gtk4::Label::new(Some(&label_text));
@@ -109,7 +109,13 @@ fn append_copy_button(row: &gtk4::Box, vbox: &gtk4::Box, result_copy: String) {
         cmd.arg(&result_copy);
         match cmd.spawn() {
             Ok(child) => nwg_common::launch::reap_child(child, "wl-copy".to_string()),
-            Err(_) => return, // wl-copy not available — skip "Copied!" feedback
+            Err(e) => {
+                log::warn!(
+                    "Failed to spawn wl-copy: {} (clipboard copy unavailable)",
+                    e
+                );
+                return;
+            }
         }
         // Cancel previous hide timer so repeated clicks reset the 2s window
         if let Some(id) = timer_ref.take() {

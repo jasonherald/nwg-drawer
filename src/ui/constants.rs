@@ -54,5 +54,12 @@ pub const DIVIDER_SIDE_MARGIN: i32 = 16;
 /// Vertical spacing between math result row and "Copied!" label.
 pub const MATH_VBOX_SPACING: i32 = 4;
 
+/// Horizontal spacing between widgets within the math result row
+/// (label / divider / copy button). The label sets its own right-margin
+/// via the `.math-result` CSS rule and the copy button sets its own
+/// left-margin via `.math-copy`, so the box-level spacing is intentionally
+/// 0 — having both wouldn't compose visibly.
+pub const MATH_ROW_SPACING: i32 = 0;
+
 /// Duration in seconds before the "Copied!" confirmation label auto-hides.
 pub const COPIED_LABEL_TIMEOUT_SECS: u64 = 2;
