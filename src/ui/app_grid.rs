@@ -1,6 +1,7 @@
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
 use crate::ui::search::subsequence_match;
+use crate::ui::well_context::WellContext;
 use crate::ui::widgets;
 use gtk4::prelude::*;
 use nwg_common::desktop::entry::DesktopEntry;
@@ -9,19 +10,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Creates the app FlowBox with optional category filter and search.
-#[allow(clippy::too_many_arguments)]
+///
+/// Reads `config`, `state`, `pinned_file`, `on_launch`, and `status_label`
+/// from `ctx`. Per-call inputs (filter, phrase, rebuild callback) stay as
+/// explicit parameters because callers vary on each.
 pub fn build_app_flow_box(
-    config: &DrawerConfig,
-    state: &Rc<RefCell<DrawerState>>,
+    ctx: &WellContext,
     category_filter: Option<&[String]>,
     search_phrase: &str,
-    pinned_file: &std::path::Path,
-    on_launch: Rc<dyn Fn()>,
-    status_label: &gtk4::Label,
     on_rebuild: Option<&Rc<dyn Fn()>>,
 ) -> gtk4::FlowBox {
-    let flow_box = create_flow_box(config);
-    let entries = state.borrow().apps.entries.clone();
+    let flow_box = create_flow_box(&ctx.config);
+    let entries = ctx.state.borrow().apps.entries.clone();
     let needle = search_phrase.to_lowercase();
 
     for entry in &entries {
@@ -44,11 +44,11 @@ pub fn build_app_flow_box(
         if show {
             let button = build_button(
                 entry,
-                config,
-                state,
-                pinned_file,
-                &on_launch,
-                status_label,
+                &ctx.config,
+                &ctx.state,
+                &ctx.pinned_file,
+                &ctx.on_launch,
+                &ctx.status_label,
                 on_rebuild,
             );
             insert_into_flow(&flow_box, &button);

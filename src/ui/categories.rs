@@ -106,16 +106,7 @@ pub fn apply_category_filter(ctx: &WellContext, category_ids: &[String]) {
     }
 
     let on_rebuild = ui::well_builder::build_rebuild_callback(ctx);
-    let flow = ui::app_grid::build_app_flow_box(
-        &ctx.config,
-        &ctx.state,
-        Some(category_ids),
-        "",
-        &ctx.pinned_file,
-        Rc::clone(&ctx.on_launch),
-        &ctx.status_label,
-        Some(&on_rebuild),
-    );
+    let flow = ui::app_grid::build_app_flow_box(ctx, Some(category_ids), "", Some(&on_rebuild));
     flow.set_halign(gtk4::Align::Center);
     ctx.well.append(&flow);
 

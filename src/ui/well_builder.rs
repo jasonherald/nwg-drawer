@@ -26,16 +26,7 @@ pub fn build_normal_well(ctx: &WellContext) {
     }
 
     // App grid (scrollable)
-    let flow = ui::app_grid::build_app_flow_box(
-        &ctx.config,
-        &ctx.state,
-        None,
-        "",
-        &ctx.pinned_file,
-        Rc::clone(&ctx.on_launch),
-        &ctx.status_label,
-        Some(&on_rebuild),
-    );
+    let flow = ui::app_grid::build_app_flow_box(ctx, None, "", Some(&on_rebuild));
     flow.set_halign(gtk4::Align::Center);
     ctx.well.append(&flow);
 
@@ -82,16 +73,7 @@ pub fn build_search_results(ctx: &WellContext, phrase: &str) {
     // Rebuild callback — rebuild_preserving_category checks active_search
     // and will re-run the search instead of restoring normal view.
     let on_rebuild = build_rebuild_callback(ctx);
-    let app_flow = ui::app_grid::build_app_flow_box(
-        &ctx.config,
-        &ctx.state,
-        None,
-        phrase,
-        &ctx.pinned_file,
-        Rc::clone(&ctx.on_launch),
-        &ctx.status_label,
-        Some(&on_rebuild),
-    );
+    let app_flow = ui::app_grid::build_app_flow_box(ctx, None, phrase, Some(&on_rebuild));
     app_flow.set_halign(gtk4::Align::Center);
     ctx.well.append(&app_flow);
 
