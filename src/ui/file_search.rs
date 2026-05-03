@@ -1,53 +1,212 @@
 use super::constants;
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
+use crate::xdg_dirs::XdgDirBucket;
+use gtk4::glib;
 use gtk4::prelude::*;
-use std::cell::RefCell;
-use std::path::Path;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-/// Performs file search across XDG user directories.
-/// Returns a Box with a clean columnar list: icon | filename | path
-pub fn search_files(
+/// Debounce window after the last keystroke before kicking off the
+/// file-system walk. Long enough that a fast typist's bursts produce
+/// one walk per phrase rather than per character; short enough that
+/// the results feel prompt for a finished phrase.
+const FILE_SEARCH_DEBOUNCE_MS: u64 = 150;
+
+/// Async file-search dispatcher, owned by `WellContext`.
+///
+/// Each `dispatch` call:
+/// - Increments the generation counter so any in-flight worker's
+///   results can be detected as stale at the consumer.
+/// - Cancels any pending debounce timeout.
+/// - Schedules a `FILE_SEARCH_DEBOUNCE_MS` timeout that, on fire,
+///   spawns an OS thread to run `walk_for_search` and ship results
+///   back via `async_channel`.
+///
+/// A single consumer future on the GTK main loop receives
+/// `(generation, rows)` results, drops them if the generation has
+/// moved (user typed since), and otherwise appends the divider +
+/// results widget to the well.
+pub struct FileSearchDispatcher {
+    generation: Rc<Cell<u64>>,
+    pending_debounce: Cell<Option<glib::SourceId>>,
+    result_tx: async_channel::Sender<(u64, Vec<FileSearchRow>)>,
+    config: Rc<DrawerConfig>,
+}
+
+impl FileSearchDispatcher {
+    /// Constructs the dispatcher and spawns the long-running result
+    /// consumer future. The consumer captures the well + supporting
+    /// widgets it needs to render results; `state` and `on_launch` are
+    /// only used at result-render time, never moved off the main thread.
+    pub fn new(
+        config: Rc<DrawerConfig>,
+        well: gtk4::Box,
+        status_label: gtk4::Label,
+        state: Rc<RefCell<DrawerState>>,
+        on_launch: Rc<dyn Fn()>,
+    ) -> Self {
+        let (result_tx, result_rx) = async_channel::unbounded::<(u64, Vec<FileSearchRow>)>();
+        let generation = Rc::new(Cell::new(0u64));
+
+        // Result consumer — runs forever on the main loop, applying
+        // results that match the current generation.
+        let gen_consumer = Rc::clone(&generation);
+        glib::spawn_future_local(async move {
+            loop {
+                let (gen_id, rows) = match result_rx.recv().await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::error!("file-search result channel closed: {e}");
+                        break;
+                    }
+                };
+                if gen_id != gen_consumer.get() {
+                    // User typed more after this worker started; results
+                    // are for a phrase the user has moved past.
+                    continue;
+                }
+                if rows.is_empty() {
+                    continue;
+                }
+                let count = rows.len();
+                let preferred_apps = state.borrow().preferred_apps.clone();
+                let widget = build_results_widget(&rows, &preferred_apps, Rc::clone(&on_launch));
+                widget.set_halign(gtk4::Align::Center);
+                well.append(&super::well_builder::divider());
+                well.append(&widget);
+                status_label.set_text(&format!(
+                    "{} file results | LMB: open | RMB: file manager",
+                    count
+                ));
+                // Up from first file result → back to app search results
+                super::navigation::install_file_results_nav(&widget);
+            }
+        });
+
+        Self {
+            generation,
+            pending_debounce: Cell::new(None),
+            result_tx,
+            config,
+        }
+    }
+
+    /// Schedules a debounced file-system walk for `phrase`. The walk
+    /// runs on a worker OS thread; results land on the consumer future.
+    pub fn dispatch(&self, phrase: &str, state: &Rc<RefCell<DrawerState>>) {
+        let gen_id = self.generation.get().wrapping_add(1);
+        self.generation.set(gen_id);
+        if let Some(id) = self.pending_debounce.take() {
+            id.remove();
+        }
+
+        // Snapshot Send-safe state under a tight borrow.
+        let phrase_owned = phrase.to_string();
+        let (user_dirs, exclusions) = {
+            let s = state.borrow();
+            (s.user_dirs.clone(), s.exclusions.clone())
+        };
+        let max = self.config.fs_max_results;
+        let tx = self.result_tx.clone();
+
+        let id = glib::timeout_add_local_once(
+            std::time::Duration::from_millis(FILE_SEARCH_DEBOUNCE_MS),
+            move || {
+                std::thread::spawn(move || {
+                    let rows = walk_for_search(&phrase_owned, &user_dirs, &exclusions, max);
+                    let _ = tx.send_blocking((gen_id, rows));
+                });
+            },
+        );
+        self.pending_debounce.set(Some(id));
+    }
+
+    /// Bumps the generation without dispatching. Call when the user
+    /// clears the search bar or switches to a non-search view —
+    /// any in-flight worker's results will be discarded.
+    pub fn invalidate(&self) {
+        self.generation.set(self.generation.get().wrapping_add(1));
+        if let Some(id) = self.pending_debounce.take() {
+            id.remove();
+        }
+    }
+}
+
+/// One result row from the file-system walk.
+///
+/// `Send + 'static` so the walker can run on a worker thread (issue #39)
+/// and ship the results back to the GTK main thread for widget
+/// construction.
+#[derive(Debug, Clone)]
+pub struct FileSearchRow {
+    /// Display path (relative to the XDG dir root).
+    pub display: String,
+    /// Full path, used for launching.
+    pub path: PathBuf,
+    /// Whether this is a directory (affects the icon).
+    pub is_dir: bool,
+}
+
+/// Walks all configured XDG user directories matching `phrase`, returning
+/// at most `max_results` rows sorted by display path.
+///
+/// Pure / Send-safe — operates on owned data only, no GTK references.
+/// Designed to run on a worker thread; the result vec is shipped back to
+/// the main thread via `async_channel` and rendered by [`build_results_widget`].
+pub fn walk_for_search(
     phrase: &str,
-    config: &DrawerConfig,
-    state: &Rc<RefCell<DrawerState>>,
-    on_launch: Rc<dyn Fn()>,
-) -> gtk4::Box {
-    let container = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
+    user_dirs: &HashMap<XdgDirBucket, PathBuf>,
+    exclusions: &[String],
+    max_results: usize,
+) -> Vec<FileSearchRow> {
+    let mut all_results: Vec<FileSearchRow> = Vec::new();
 
-    let user_dirs = state.borrow().user_dirs.clone();
-    let exclusions = state.borrow().exclusions.clone();
-    let preferred_apps = state.borrow().preferred_apps.clone();
-
-    let mut all_results: Vec<(String, std::path::PathBuf, bool)> = Vec::new();
-
-    for (bucket, dir_path) in &user_dirs {
+    for (bucket, dir_path) in user_dirs {
         // Skip $HOME itself — walking the entire home tree is what every
         // other XDG dir is a more-targeted slice of.
-        if *bucket == crate::xdg_dirs::XdgDirBucket::Home || !dir_path.exists() {
+        if *bucket == XdgDirBucket::Home || !dir_path.exists() {
             continue;
         }
-        let remaining = config.fs_max_results.saturating_sub(all_results.len());
+        let remaining = max_results.saturating_sub(all_results.len());
         if remaining == 0 {
             break;
         }
-        for result in walk_directory(dir_path, phrase, &exclusions, remaining) {
+        for result in walk_directory(dir_path, phrase, exclusions, remaining) {
             let display = result
                 .path
                 .strip_prefix(dir_path)
                 .unwrap_or(&result.path)
                 .to_string_lossy()
                 .to_string();
-            all_results.push((display, result.path, result.is_dir));
+            all_results.push(FileSearchRow {
+                display,
+                path: result.path,
+                is_dir: result.is_dir,
+            });
         }
     }
 
     // Sort alphabetically by display name
-    all_results.sort_by_key(|a| a.0.to_lowercase());
+    all_results.sort_by_key(|r| r.display.to_lowercase());
+    all_results
+}
 
-    // Column header
-    if !all_results.is_empty() {
+/// Builds the GTK results widget from already-walked rows.
+///
+/// Stays on the main thread — uses `Rc<dyn Fn()>` for `on_launch` and
+/// constructs `gtk4` widgets. Caller is responsible for appending the
+/// returned `Box` to the well at the right position (after the divider).
+pub fn build_results_widget(
+    rows: &[FileSearchRow],
+    preferred_apps: &HashMap<String, String>,
+    on_launch: Rc<dyn Fn()>,
+) -> gtk4::Box {
+    let container = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
+
+    if !rows.is_empty() {
         let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
         header.add_css_class("file-list-header");
 
@@ -69,16 +228,15 @@ pub fn search_files(
         container.append(&sep);
     }
 
-    // Result rows
-    for (display, file_path, is_dir) in &all_results {
-        let row = file_result_row(
-            display,
-            file_path,
-            *is_dir,
-            &preferred_apps,
+    for row in rows {
+        let widget = file_result_row(
+            &row.display,
+            &row.path,
+            row.is_dir,
+            preferred_apps,
             Rc::clone(&on_launch),
         );
-        container.append(&row);
+        container.append(&widget);
     }
 
     container

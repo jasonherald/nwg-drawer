@@ -1,5 +1,6 @@
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
+use crate::ui::file_search::FileSearchDispatcher;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -18,4 +19,8 @@ pub struct WellContext {
     pub on_launch: Rc<dyn Fn()>,
     pub status_label: gtk4::Label,
     pub search_entry: gtk4::SearchEntry,
+    /// Async dispatcher for file-system search. `dispatch(phrase)` runs
+    /// the walk on a worker thread and appends results to `well` via
+    /// the consumer future spawned at `WellContext` construction time.
+    pub file_search: Rc<FileSearchDispatcher>,
 }

@@ -101,6 +101,10 @@ fn create_category_button(
 /// Builds the well content filtered to a specific category.
 /// Public so the rebuild callback can restore the active filter after unpin.
 pub fn apply_category_filter(ctx: &WellContext, category_ids: &[String]) {
+    // Drop any in-flight file-search worker so its results don't land
+    // on the now-category-filtered well.
+    ctx.file_search.invalidate();
+
     while let Some(child) = ctx.well.first_child() {
         ctx.well.remove(&child);
     }
