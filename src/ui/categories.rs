@@ -27,8 +27,13 @@ pub fn build_category_bar(ctx: &WellContext) -> gtk4::Box {
         all_btn.connect_clicked(move |btn| {
             select_button(btn, &buttons);
             ctx.search_entry.set_text("");
-            ctx.state.borrow_mut().active_search.clear();
-            ctx.state.borrow_mut().active_category.clear();
+            // Coalesce mutations into one scope; drop before the rebuild call so
+            // build_normal_well's first borrow can't deadlock against ours.
+            {
+                let mut s = ctx.state.borrow_mut();
+                s.active_search.clear();
+                s.active_category.clear();
+            }
             ctx.pinned_box.set_visible(true);
             ui::well_builder::build_normal_well(&ctx);
         });
@@ -80,8 +85,13 @@ fn create_category_button(
     btn.connect_clicked(move |btn| {
         select_button(btn, &buttons);
         ctx.search_entry.set_text("");
-        ctx.state.borrow_mut().active_search.clear();
-        ctx.state.borrow_mut().active_category = ids.clone();
+        // Coalesce mutations into one scope; drop before apply_category_filter
+        // re-borrows.
+        {
+            let mut s = ctx.state.borrow_mut();
+            s.active_search.clear();
+            s.active_category = ids.clone();
+        }
         apply_category_filter(&ctx, &ids);
     });
 

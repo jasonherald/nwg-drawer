@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Hardened category, search, and pin-toggle callbacks against re-entrant
+  signal panics during pin/unpin I/O. Resolves #30.
+
+### Fixed
+
+- Pin-toggle save failure no longer silently reorders the pinned row — the
+  rollback path now restores the unpinned item at its original position
+  instead of appending it. Pre-existing latent bug surfaced during #30.
+
 ### Removed
 
 - Dead `src/ui/pinned.rs` module. The file was never declared in `mod.rs`,
