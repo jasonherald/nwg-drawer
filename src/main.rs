@@ -10,6 +10,7 @@ mod power_bar_detect;
 mod state;
 mod ui;
 mod watcher;
+mod xdg_dirs;
 
 use crate::config::DrawerConfig;
 use clap::Parser;
