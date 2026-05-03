@@ -205,11 +205,7 @@ fn file_result_row(
         .to_string();
     // Shorten home prefix
     let home = std::env::var("HOME").unwrap_or_default();
-    let short_path = if parent.starts_with(&home) {
-        format!("~{}", &parent[home.len()..])
-    } else {
-        parent
-    };
+    let short_path = shorten_home(&parent, &home);
     let path_label = gtk4::Label::new(Some(&short_path));
     path_label.set_halign(gtk4::Align::Start);
     path_label.set_hexpand(true);
@@ -242,6 +238,23 @@ fn file_result_row(
     button
 }
 
+/// Replaces a leading `home` directory in `parent` with `~`.
+///
+/// Component-aware via `Path::strip_prefix`, so `/home/user` does not
+/// prefix-match `/home/userfoo` (a sibling, not a child). Returns `parent`
+/// unchanged when `home` is empty (e.g. `$HOME` unset) or when `parent` is
+/// not under `home`.
+fn shorten_home(parent: &str, home: &str) -> String {
+    if home.is_empty() {
+        return parent.to_string();
+    }
+    match std::path::Path::new(parent).strip_prefix(std::path::Path::new(home)) {
+        Ok(rest) if rest.as_os_str().is_empty() => "~".to_string(),
+        Ok(rest) => format!("~/{}", rest.to_string_lossy()),
+        Err(_) => parent.to_string(),
+    }
+}
+
 fn file_type_icon(path: &Path) -> &'static str {
     let ext = path
         .extension()
@@ -262,5 +275,53 @@ fn file_type_icon(path: &Path) -> &'static str {
         "ppt" | "pptx" | "odp" => "x-office-presentation",
         "3mf" | "stl" | "obj" | "step" | "stp" => "application-x-blender",
         _ => "text-x-generic",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shorten_home;
+
+    #[test]
+    fn shortens_path_under_home() {
+        assert_eq!(shorten_home("/home/user/Docs", "/home/user"), "~/Docs");
+    }
+
+    #[test]
+    fn handles_exact_home_match() {
+        assert_eq!(shorten_home("/home/user", "/home/user"), "~");
+    }
+
+    #[test]
+    fn handles_nested_path() {
+        assert_eq!(shorten_home("/home/user/a/b/c", "/home/user"), "~/a/b/c");
+    }
+
+    #[test]
+    fn handles_trailing_slash_on_home() {
+        assert_eq!(shorten_home("/home/user/Docs", "/home/user/"), "~/Docs");
+    }
+
+    #[test]
+    fn returns_parent_unchanged_when_outside_home() {
+        assert_eq!(shorten_home("/etc/foo", "/home/user"), "/etc/foo");
+    }
+
+    #[test]
+    fn does_not_match_sibling_directory() {
+        // /home/userfoo is a sibling of /home/user, not a child. The
+        // String::starts_with check incorrectly matches here, producing
+        // "~foo/Docs" instead of leaving the path alone.
+        assert_eq!(
+            shorten_home("/home/userfoo/Docs", "/home/user"),
+            "/home/userfoo/Docs"
+        );
+    }
+
+    #[test]
+    fn returns_parent_unchanged_when_home_unset() {
+        // When $HOME is unset we get an empty string, and "".starts_with("")
+        // is always true — so every path used to gain a leading "~".
+        assert_eq!(shorten_home("/etc/something", ""), "/etc/something");
     }
 }
