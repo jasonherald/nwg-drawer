@@ -172,17 +172,24 @@ fn connect_pin(
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
 
-        // Phase 1: mutate in-memory state under a tight borrow, snapshot the
-        // new pin list, then release the borrow before file I/O.
-        let (was_pinned, snapshot) = {
+        // Phase 1: capture original position (for rollback ordering), mutate
+        // in-memory state under a tight borrow, snapshot, release.
+        let (was_pinned, original_pos, snapshot) = {
             let mut s = state_ref.borrow_mut();
             let was_pinned = pinning::is_pinned(&s.pinned, &id);
+            // Only meaningful for the unpin path — re-pinning never needs a
+            // position to restore to.
+            let original_pos = if was_pinned {
+                s.pinned.iter().position(|p| p == &id)
+            } else {
+                None
+            };
             if was_pinned {
                 pinning::unpin_item(&mut s.pinned, &id);
             } else {
                 pinning::pin_item(&mut s.pinned, &id);
             }
-            (was_pinned, s.pinned.clone())
+            (was_pinned, original_pos, s.pinned.clone())
         };
 
         // Phase 2: I/O outside any borrow — a hypothetical re-entrant signal
@@ -192,8 +199,15 @@ fn connect_pin(
             // Rollback in-memory state to stay in sync with disk.
             let mut s = state_ref.borrow_mut();
             if was_pinned {
-                pinning::pin_item(&mut s.pinned, &id);
+                // Re-insert at original position so a save failure doesn't
+                // silently reorder the user's pinned row.
+                if let Some(pos) = original_pos {
+                    s.pinned.insert(pos, id.clone());
+                } else {
+                    s.pinned.push(id.clone());
+                }
             } else {
+                // Item wasn't pinned before; remove what we just appended.
                 pinning::unpin_item(&mut s.pinned, &id);
             }
             return;

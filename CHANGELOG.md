@@ -15,14 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Tightened `RefCell` borrow discipline across the category-button, search,
-  and pin-toggle callbacks. Sequential `borrow_mut` calls now coalesce into a
-  single block scope; pin/unpin handlers snapshot the pin list and release
-  the borrow before `save_pinned` I/O so a hypothetical re-entrant signal
-  during save can't deadlock. `in_search_mode` switched from
-  `Rc<RefCell<bool>>` to `Rc<Cell<bool>>` to match `focus_pending` and remove
-  the borrow-panic surface for a `Copy`-only flag. New doc-comment on
-  `DrawerState` documents the borrow → drop → rebuild rule. Resolves #30.
+- Hardened category, search, and pin-toggle callbacks against re-entrant
+  signal panics during pin/unpin I/O. Resolves #30.
+
+### Fixed
+
+- Pin-toggle save failure no longer silently reorders the pinned row — the
+  rollback path now restores the unpinned item at its original position
+  instead of appending it. Pre-existing latent bug surfaced during #30.
 
 ### Removed
 
