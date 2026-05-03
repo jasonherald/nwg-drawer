@@ -23,7 +23,6 @@ use nwg_common::signals::WindowCommand;
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::mpsc::Receiver;
 
 /// Mac-style drawer CSS, embedded at compile time.
 const DRAWER_CSS: &str = include_str!("assets/drawer.css");
@@ -42,7 +41,7 @@ pub(crate) struct DrawerInit {
     pub(crate) app_dirs: Vec<PathBuf>,
     pub(crate) exclusions: Vec<String>,
     pub(crate) compositor: Rc<dyn nwg_common::compositor::Compositor>,
-    pub(crate) sig_rx: Rc<Receiver<WindowCommand>>,
+    pub(crate) sig_rx: async_channel::Receiver<WindowCommand>,
 }
 
 /// Sets up the drawer UI: CSS, state, window, layout, search, and listeners.

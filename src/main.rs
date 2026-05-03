@@ -48,7 +48,19 @@ fn main() {
     let compositor: Rc<dyn nwg_common::compositor::Compositor> =
         Rc::from(nwg_common::compositor::init_or_null(config.wm));
 
-    let sig_rx = Rc::new(signals::setup_signal_handlers(config.resident));
+    // RT-signal handler returns a sync `mpsc::Receiver`. Bridge it to an
+    // `async_channel` so the listener can `recv().await` on the glib main
+    // loop instead of polling. The forwarding thread exits when the
+    // glib-side receiver drops at process shutdown.
+    let signal_mpsc = signals::setup_signal_handlers(config.resident);
+    let (sig_tx, sig_rx) = async_channel::unbounded::<nwg_common::signals::WindowCommand>();
+    std::thread::spawn(move || {
+        while let Ok(cmd) = signal_mpsc.recv() {
+            if sig_tx.send_blocking(cmd).is_err() {
+                break;
+            }
+        }
+    });
     let config_dir = paths::config_dir("nwg-drawer");
     if let Err(e) = paths::ensure_dir(&config_dir) {
         log::warn!("Failed to create config dir: {}", e);

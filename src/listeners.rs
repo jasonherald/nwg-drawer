@@ -10,7 +10,6 @@ use nwg_common::pinning;
 use nwg_common::signals::WindowCommand;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::mpsc;
 
 /// Sets up keyboard handler for the drawer window.
 ///
@@ -145,6 +144,10 @@ pub fn setup_focus_detector(
 }
 
 /// Sets up inotify-based file watcher for pin and desktop file changes.
+///
+/// Events are delivered via `async_channel` and consumed by a glib
+/// future spawned on the main loop — no polling cadence, sub-ms
+/// latency from inotify event to UI rebuild.
 pub fn setup_file_watcher(
     app_dirs: &[std::path::PathBuf],
     ctx: &crate::ui::well_context::WellContext,
@@ -152,8 +155,8 @@ pub fn setup_file_watcher(
     let watch_rx = watcher::start_watcher(app_dirs, &ctx.pinned_file);
     let ctx = ctx.clone();
 
-    glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-        while let Ok(event) = watch_rx.try_recv() {
+    glib::spawn_future_local(async move {
+        while let Ok(event) = watch_rx.recv().await {
             match event {
                 watcher::WatchEvent::DesktopFilesChanged => {
                     log::info!("Desktop files changed, reloading...");
@@ -167,30 +170,33 @@ pub fn setup_file_watcher(
                 }
             }
         }
-        glib::ControlFlow::Continue
     });
 }
 
-/// Sets up signal handler polling for SIGRTMIN+1/2/3.
+/// Spawns the glib-main-loop consumer for SIGRTMIN+1/2/3 signals.
+///
+/// `main` bridges `nwg_common::signals`'s `mpsc::Receiver` to an
+/// `async_channel::Receiver` once at startup; this just attaches a
+/// glib future that awaits each command and dispatches it. Sub-ms
+/// latency from signal delivery to window action.
 pub fn setup_signal_poller(
     win: &gtk4::ApplicationWindow,
     search_entry: &gtk4::SearchEntry,
     well_ctx: &crate::ui::well_context::WellContext,
     focus_pending: &Rc<Cell<bool>>,
-    sig_rx: &Rc<mpsc::Receiver<WindowCommand>>,
+    sig_rx: &async_channel::Receiver<WindowCommand>,
     resident: bool,
 ) {
     let win = win.clone();
     let entry = search_entry.clone();
     let ctx = well_ctx.clone();
     let pending = Rc::clone(focus_pending);
-    let rx = Rc::clone(sig_rx);
+    let rx = sig_rx.clone();
 
-    glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-        while let Ok(cmd) = rx.try_recv() {
+    glib::spawn_future_local(async move {
+        while let Ok(cmd) = rx.recv().await {
             commands::handle_window_command(&win, &entry, &ctx, &pending, cmd, resident);
         }
-        glib::ControlFlow::Continue
     });
 }
 

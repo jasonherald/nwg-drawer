@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Hardened category, search, and pin-toggle callbacks against re-entrant
   signal panics during pin/unpin I/O. Resolves #30.
+- RT-signal toggle/show/hide and inotify-driven file-watcher events now
+  deliver to the UI in under a millisecond instead of up to 100 ms. The
+  drawer used to poll its event channels at a fixed 100 ms cadence; now
+  both consumers attach to the glib main loop via `async_channel` and
+  run as soon as their event arrives. Resolves #40.
 
 ### Fixed
 
