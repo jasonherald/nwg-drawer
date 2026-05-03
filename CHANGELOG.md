@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   debounces 150 ms after the last keystroke and runs on a worker
   thread; app-name results and the math evaluator stay instant.
   Resolves #39.
+- App-grid and pinned-row rebuilds skip their per-build allocations of
+  the entire `.desktop` registry — every keystroke during search used
+  to clone the full `Vec<DesktopEntry>` plus the per-entry `app_dirs`
+  / `gtk_theme_prefix` / `compositor` references; now a single
+  immutable borrow spans the iteration and the slice flows through.
+  Sub-millisecond shave per rebuild, but bounded by entry count, so
+  the win scales with how many `.desktop` files the user has.
 
 ### Fixed
 

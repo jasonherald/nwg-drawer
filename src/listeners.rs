@@ -343,9 +343,11 @@ fn handle_return(
     if !search_entry.has_focus() {
         return;
     }
-    let text = search_entry.text().to_string();
-    if text.starts_with(':') && text.len() > 1 {
-        let cmd = &text[1..];
+    // GString derefs to &str — no need to materialize a String.
+    let text = search_entry.text();
+    if let Some(cmd) = text.strip_prefix(':')
+        && !cmd.is_empty()
+    {
         nwg_common::launch::launch_via_compositor(cmd, compositor);
         on_launch();
     }

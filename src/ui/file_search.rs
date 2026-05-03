@@ -73,7 +73,7 @@ impl FileSearchDispatcher {
                 }
                 let count = rows.len();
                 let preferred_apps = state.borrow().preferred_apps.clone();
-                let widget = build_results_widget(&rows, &preferred_apps, Rc::clone(&on_launch));
+                let widget = build_results_widget(&rows, &preferred_apps, &on_launch);
                 widget.set_halign(gtk4::Align::Center);
                 well.append(&super::well_builder::divider());
                 well.append(&widget);
@@ -202,7 +202,7 @@ pub fn walk_for_search(
 pub fn build_results_widget(
     rows: &[FileSearchRow],
     preferred_apps: &HashMap<String, String>,
-    on_launch: Rc<dyn Fn()>,
+    on_launch: &Rc<dyn Fn()>,
 ) -> gtk4::Box {
     let container = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
 
@@ -234,7 +234,7 @@ pub fn build_results_widget(
             &row.path,
             row.is_dir,
             preferred_apps,
-            Rc::clone(&on_launch),
+            on_launch,
         );
         container.append(&widget);
     }
@@ -324,7 +324,7 @@ fn file_result_row(
     file_path: &Path,
     is_dir: bool,
     preferred_apps: &std::collections::HashMap<String, String>,
-    on_launch: Rc<dyn Fn()>,
+    on_launch: &Rc<dyn Fn()>,
 ) -> gtk4::Button {
     let button = gtk4::Button::new();
     button.add_css_class("file-result-row");
@@ -381,6 +381,7 @@ fn file_result_row(
     let path_str = file_path.to_string_lossy().to_string();
     let preferred_cmd =
         nwg_common::desktop::preferred_apps::find_preferred_app(&path_str, preferred_apps);
+    let on_launch = Rc::clone(on_launch);
     button.connect_clicked(move |_| {
         let cmd = if let Some(ref app) = preferred_cmd {
             let mut c = std::process::Command::new(app);

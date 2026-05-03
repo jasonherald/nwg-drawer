@@ -126,8 +126,15 @@ pub fn restore_normal_well(ctx: &WellContext) {
 /// Builds the pinned items FlowBox with right-click unpin + immediate rebuild.
 fn build_pinned_flow(ctx: &WellContext, on_rebuild: &Rc<dyn Fn()>) -> gtk4::FlowBox {
     let flow_box = gtk4::FlowBox::new();
-    let pinned = ctx.state.borrow().pinned.clone();
-    let cols = ctx.config.columns.min(pinned.len() as u32).max(1);
+
+    // Hold one immutable borrow across the iteration, mirroring
+    // `build_app_flow_box`. Saves cloning `pinned` (Vec<String>),
+    // `id2entry` (HashMap, often the largest registry by far), and
+    // `app_dirs` per build. RefCell allows multiple immutable borrows;
+    // build_pinned_button's own `.borrow()`s coexist fine.
+    let s = ctx.state.borrow();
+
+    let cols = ctx.config.columns.min(s.pinned.len() as u32).max(1);
     flow_box.set_min_children_per_line(cols);
     flow_box.set_max_children_per_line(cols);
     flow_box.set_column_spacing(ctx.config.spacing);
@@ -135,15 +142,12 @@ fn build_pinned_flow(ctx: &WellContext, on_rebuild: &Rc<dyn Fn()>) -> gtk4::Flow
     flow_box.set_homogeneous(true);
     flow_box.set_selection_mode(gtk4::SelectionMode::None);
 
-    let id2entry = ctx.state.borrow().apps.id2entry.clone();
-    let app_dirs = ctx.state.borrow().app_dirs.clone();
-
-    for desktop_id in &pinned {
-        let entry = match id2entry.get(desktop_id) {
+    for desktop_id in &s.pinned {
+        let entry = match s.apps.id2entry.get(desktop_id) {
             Some(e) if !e.desktop_id.is_empty() && !e.no_display => e,
             _ => continue,
         };
-        let button = build_pinned_button(entry, ctx, &app_dirs, on_rebuild, desktop_id);
+        let button = build_pinned_button(entry, ctx, &s.app_dirs, on_rebuild, desktop_id);
         if ctx.config.pin_indicator {
             crate::ui::widgets::apply_pin_badge(&button);
         }
@@ -205,7 +209,9 @@ fn build_pinned_button(
     // Right-click → unpin + immediate rebuild
     let id = desktop_id.to_string();
     let state_ref = Rc::clone(&ctx.state);
-    let path = ctx.pinned_file.as_ref().clone();
+    // Cheap Rc clone of the path; the closure consumes it via deref to
+    // `&Path` at the save_pinned call sites — no PathBuf allocation.
+    let path = Rc::clone(&ctx.pinned_file);
     let rebuild = Rc::clone(on_rebuild);
     let gesture = gtk4::GestureClick::new();
     gesture.set_button(3);
@@ -245,11 +251,20 @@ fn build_pinned_button(
 }
 
 /// Creates a callback that rebuilds the entire well + pinned_box.
-/// Public so category filter can create rebuild callbacks for pin/unpin.
+///
+/// Defers via `idle_add_local_once` so any caller mid-mutation
+/// (pin/unpin handlers holding a `borrow_mut`) drops their borrow
+/// before `rebuild_preserving_category` re-borrows the state — the
+/// "borrow → drop → rebuild" rule documented on `DrawerState`.
+///
+/// Wraps the captured context in `Rc<WellContext>` so each invocation
+/// re-clones one refcount bump rather than the full 9-field shallow
+/// clone of `WellContext`. (Rebuild fires on every pin/unpin click;
+/// it's not perf-critical, but cleaner this way.)
 pub fn build_rebuild_callback(ctx: &WellContext) -> Rc<dyn Fn()> {
-    let ctx = ctx.clone();
+    let ctx = Rc::new(ctx.clone());
     Rc::new(move || {
-        let ctx = ctx.clone();
+        let ctx = Rc::clone(&ctx);
         gtk4::glib::idle_add_local_once(move || {
             rebuild_preserving_category(&ctx);
         });

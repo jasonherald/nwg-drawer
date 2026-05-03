@@ -94,8 +94,12 @@ fn main() {
     let init = Rc::new(activate::DrawerInit {
         config: Rc::new(config),
         css_path: Rc::new(css_path),
-        pinned_file: Rc::new(pinned_file),
-        data_home: Rc::new(data_home),
+        // `Rc::from(PathBuf)` produces an `Rc<Path>` directly — no
+        // double indirection through `Rc<PathBuf>`.
+        pinned_file: Rc::from(pinned_file),
+        // No `Rc` wrap: `data_home` is read once per activate via
+        // `as_deref()`, never cloned into closures.
+        data_home,
         app_dirs,
         exclusions,
         compositor,

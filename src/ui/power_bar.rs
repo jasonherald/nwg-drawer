@@ -40,7 +40,7 @@ struct PowerButtonDef {
 /// If `--pb-use-icon-theme` is set, uses the system icon theme instead.
 pub fn build_power_bar(
     config: &DrawerConfig,
-    on_launch: Rc<dyn Fn()>,
+    on_launch: &Rc<dyn Fn()>,
     data_home: Option<&Path>,
     status_label: &gtk4::Label,
 ) -> gtk4::Box {
@@ -66,7 +66,7 @@ pub fn build_power_bar(
         button.set_child(Some(&image));
 
         let cmd = command.to_string();
-        let on_launch = Rc::clone(&on_launch);
+        let on_launch = Rc::clone(on_launch);
         button.connect_clicked(move |_| {
             nwg_common::launch::launch_shell_command(&cmd);
             on_launch();

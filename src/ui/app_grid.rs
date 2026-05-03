@@ -21,10 +21,18 @@ pub fn build_app_flow_box(
     on_rebuild: Option<&Rc<dyn Fn()>>,
 ) -> gtk4::FlowBox {
     let flow_box = create_flow_box(&ctx.config);
-    let entries = ctx.state.borrow().apps.entries.clone();
     let needle = search_phrase.to_lowercase();
 
-    for entry in &entries {
+    // Hold one immutable borrow across the iteration. Iterating
+    // `&s.apps.entries` directly avoids cloning the entire
+    // `Vec<DesktopEntry>` per build (used to be a multi-KB allocation
+    // per keystroke under heavy `.desktop` registries). RefCell allows
+    // multiple immutable borrows, so build_button's own `.borrow()`s
+    // for inner closures still work; only borrow_mut would conflict,
+    // and those run at click time when this Ref is long dropped.
+    let s = ctx.state.borrow();
+
+    for entry in &s.apps.entries {
         if entry.no_display {
             continue;
         }
@@ -42,15 +50,7 @@ pub fn build_app_flow_box(
         };
 
         if show {
-            let button = build_button(
-                entry,
-                &ctx.config,
-                &ctx.state,
-                &ctx.pinned_file,
-                &ctx.on_launch,
-                &ctx.status_label,
-                on_rebuild,
-            );
+            let button = build_button(entry, ctx, &s.app_dirs, on_rebuild);
             insert_into_flow(&flow_box, &button);
         }
     }
@@ -80,16 +80,18 @@ fn insert_into_flow(flow_box: &gtk4::FlowBox, button: &gtk4::Button) {
 }
 
 /// Builds an app button with click-to-launch and right-click-to-pin.
+///
+/// `app_dirs` is borrowed from the caller's already-held `DrawerState`
+/// Ref (see `build_app_flow_box`) to avoid the per-entry `Vec<PathBuf>`
+/// clone that the previous implementation incurred. The slice is only
+/// used during the call to `app_icon_button`; nothing inside the
+/// per-button closures captures it.
 fn build_button(
     entry: &DesktopEntry,
-    config: &DrawerConfig,
-    state: &Rc<RefCell<DrawerState>>,
-    pinned_file: &std::path::Path,
-    on_launch: &Rc<dyn Fn()>,
-    status_label: &gtk4::Label,
+    ctx: &WellContext,
+    app_dirs: &[std::path::PathBuf],
     on_rebuild: Option<&Rc<dyn Fn()>>,
 ) -> gtk4::Button {
-    let app_dirs = state.borrow().app_dirs.clone();
     let name = if !entry.name_loc.is_empty() {
         &entry.name_loc
     } else {
@@ -104,20 +106,21 @@ fn build_button(
     let button = widgets::app_icon_button(
         &entry.icon,
         name,
-        config.icon_size,
-        &app_dirs,
-        status_label,
+        ctx.config.icon_size,
+        app_dirs,
+        &ctx.status_label,
         desc,
     );
 
-    connect_launch(&button, entry, config, state, on_launch);
+    connect_launch(&button, entry, &ctx.config, &ctx.state, &ctx.on_launch);
 
     if let Some(rebuild) = on_rebuild {
-        connect_pin(&button, entry, state, pinned_file, rebuild);
+        connect_pin(&button, entry, &ctx.state, &ctx.pinned_file, rebuild);
     }
 
     // Pin indicator dot (only in grid, not in pinned section)
-    if config.pin_indicator && pinning::is_pinned(&state.borrow().pinned, &entry.desktop_id) {
+    if ctx.config.pin_indicator && pinning::is_pinned(&ctx.state.borrow().pinned, &entry.desktop_id)
+    {
         widgets::apply_pin_badge(&button);
     }
 
@@ -160,12 +163,14 @@ fn connect_pin(
     button: &gtk4::Button,
     entry: &DesktopEntry,
     state: &Rc<RefCell<DrawerState>>,
-    pinned_file: &std::path::Path,
+    pinned_file: &Rc<std::path::Path>,
     rebuild: &Rc<dyn Fn()>,
 ) {
     let id = entry.desktop_id.clone();
     let state_ref = Rc::clone(state);
-    let path = pinned_file.to_path_buf();
+    // Cheap Rc clone — closure derefs to `&Path` for save_pinned, no
+    // PathBuf allocation per pin/unpin click.
+    let path = Rc::clone(pinned_file);
     let rebuild = Rc::clone(rebuild);
     let gesture = gtk4::GestureClick::new();
     gesture.set_button(3);
