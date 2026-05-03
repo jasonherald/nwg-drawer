@@ -155,6 +155,15 @@ pub fn setup_file_watcher(
     let watch_rx = watcher::start_watcher(app_dirs, &ctx.pinned_file);
     let ctx = ctx.clone();
 
+    /// Cap on events drained per coalesce batch. The drain catches up to
+    /// inotify production in practice (try_recv runs in nanoseconds; event
+    /// production is rate-limited by the kernel), but a hostile workload
+    /// that produces events as fast as we drain them could otherwise stall
+    /// the GTK main loop indefinitely. 512 is comfortably above any
+    /// realistic burst size (`pacman -Syu` peaks at a few hundred events)
+    /// while still bounding the worst-case drain time.
+    const MAX_WATCH_EVENTS_PER_BATCH: usize = 512;
+
     glib::spawn_future_local(async move {
         // Coalesce bursts. inotify can fire dozens of events for a single
         // user-visible change (`watcher::start_watcher` doc spells this
@@ -169,7 +178,10 @@ pub fn setup_file_watcher(
             let mut reload_desktop = matches!(first, watcher::WatchEvent::DesktopFilesChanged);
             let mut reload_pinned = matches!(first, watcher::WatchEvent::PinnedChanged);
 
-            while let Ok(next) = watch_rx.try_recv() {
+            for _ in 0..MAX_WATCH_EVENTS_PER_BATCH {
+                let Ok(next) = watch_rx.try_recv() else {
+                    break;
+                };
                 reload_desktop |= matches!(next, watcher::WatchEvent::DesktopFilesChanged);
                 reload_pinned |= matches!(next, watcher::WatchEvent::PinnedChanged);
             }
