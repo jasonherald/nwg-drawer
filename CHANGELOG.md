@@ -33,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- File-search debounce no longer crashes the drawer when the user
+  pauses long enough for the worker to fire and then keeps typing. The
+  dispatcher used to retain the timeout's `SourceId` after it had
+  fired; a subsequent keystroke would call `id.remove()` on the
+  already-removed source, which `glib::SourceId::remove` panics on in
+  glib 0.21. The slot is now cleared from inside the timeout closure
+  itself.
+
+### Fixed
+
 - Pin-toggle save failure no longer silently reorders the pinned row — the
   rollback path now restores the unpinned item at its original position
   instead of appending it. Pre-existing latent bug surfaced during #30.
