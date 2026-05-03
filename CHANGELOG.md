@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   debounces 150 ms after the last keystroke and runs on a worker
   thread; app-name results and the math evaluator stay instant.
   Resolves #39.
+- App-grid and pinned-row rebuilds avoid per-build allocations on the
+  hot search path; keystroke-time overhead now scales much better on
+  large `.desktop` registries.
+
+### Fixed
+
+- File-search debounce no longer crashes the drawer when the user
+  pauses long enough for the worker to fire and then keeps typing. The
+  dispatcher used to retain the timeout's `SourceId` after it had
+  fired; a subsequent keystroke would call `id.remove()` on the
+  already-removed source, which `glib::SourceId::remove` panics on in
+  glib 0.21. The slot is now cleared from inside the timeout closure
+  itself.
 
 ### Fixed
 

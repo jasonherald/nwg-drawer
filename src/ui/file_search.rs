@@ -31,7 +31,12 @@ const FILE_SEARCH_DEBOUNCE_MS: u64 = 150;
 /// results widget to the well.
 pub struct FileSearchDispatcher {
     generation: Rc<Cell<u64>>,
-    pending_debounce: Cell<Option<glib::SourceId>>,
+    /// `Rc<Cell<…>>` so the timeout closure can share the slot and
+    /// clear it when it fires — once a `glib::SourceId` has fired,
+    /// glib has already auto-removed the source and a later
+    /// `id.remove()` call panics with "Source ID … was not found"
+    /// (glib 0.21's `SourceId::remove` unwraps the result).
+    pending_debounce: Rc<Cell<Option<glib::SourceId>>>,
     result_tx: async_channel::Sender<(u64, Vec<FileSearchRow>)>,
     config: Rc<DrawerConfig>,
 }
@@ -72,8 +77,11 @@ impl FileSearchDispatcher {
                     continue;
                 }
                 let count = rows.len();
-                let preferred_apps = state.borrow().preferred_apps.clone();
-                let widget = build_results_widget(&rows, &preferred_apps, Rc::clone(&on_launch));
+                // Borrow `preferred_apps` for the build call — `build_results_widget`
+                // takes a reference, so cloning the whole HashMap on the hot path
+                // is wasted work.
+                let state_ref = state.borrow();
+                let widget = build_results_widget(&rows, &state_ref.preferred_apps, &on_launch);
                 widget.set_halign(gtk4::Align::Center);
                 well.append(&super::well_builder::divider());
                 well.append(&widget);
@@ -88,7 +96,7 @@ impl FileSearchDispatcher {
 
         Self {
             generation,
-            pending_debounce: Cell::new(None),
+            pending_debounce: Rc::new(Cell::new(None)),
             result_tx,
             config,
         }
@@ -99,6 +107,9 @@ impl FileSearchDispatcher {
     pub fn dispatch(&self, phrase: &str, state: &Rc<RefCell<DrawerState>>) {
         let gen_id = self.generation.get().wrapping_add(1);
         self.generation.set(gen_id);
+        // Cancel any still-pending debounce. If `take()` returns `Some`,
+        // the source has not fired yet (the closure clears the slot when
+        // it does), so `remove()` is safe to call.
         if let Some(id) = self.pending_debounce.take() {
             id.remove();
         }
@@ -111,10 +122,16 @@ impl FileSearchDispatcher {
         };
         let max = self.config.fs_max_results;
         let tx = self.result_tx.clone();
+        let pending_slot = Rc::clone(&self.pending_debounce);
 
         let id = glib::timeout_add_local_once(
             std::time::Duration::from_millis(FILE_SEARCH_DEBOUNCE_MS),
             move || {
+                // Clear our slot — glib auto-removes the source after
+                // the closure returns, so a later `dispatch` /
+                // `invalidate` calling `id.remove()` would panic with
+                // "Source ID not found" (issue #39 follow-up).
+                pending_slot.set(None);
                 std::thread::spawn(move || {
                     let rows = walk_for_search(&phrase_owned, &user_dirs, &exclusions, max);
                     let _ = tx.send_blocking((gen_id, rows));
@@ -129,6 +146,8 @@ impl FileSearchDispatcher {
     /// any in-flight worker's results will be discarded.
     pub fn invalidate(&self) {
         self.generation.set(self.generation.get().wrapping_add(1));
+        // Same staleness guarantee as `dispatch`: a `Some` here means
+        // the source hasn't fired yet, so removing is safe.
         if let Some(id) = self.pending_debounce.take() {
             id.remove();
         }
@@ -202,7 +221,7 @@ pub fn walk_for_search(
 pub fn build_results_widget(
     rows: &[FileSearchRow],
     preferred_apps: &HashMap<String, String>,
-    on_launch: Rc<dyn Fn()>,
+    on_launch: &Rc<dyn Fn()>,
 ) -> gtk4::Box {
     let container = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
 
@@ -234,7 +253,7 @@ pub fn build_results_widget(
             &row.path,
             row.is_dir,
             preferred_apps,
-            Rc::clone(&on_launch),
+            on_launch,
         );
         container.append(&widget);
     }
@@ -324,7 +343,7 @@ fn file_result_row(
     file_path: &Path,
     is_dir: bool,
     preferred_apps: &std::collections::HashMap<String, String>,
-    on_launch: Rc<dyn Fn()>,
+    on_launch: &Rc<dyn Fn()>,
 ) -> gtk4::Button {
     let button = gtk4::Button::new();
     button.add_css_class("file-result-row");
@@ -381,6 +400,7 @@ fn file_result_row(
     let path_str = file_path.to_string_lossy().to_string();
     let preferred_cmd =
         nwg_common::desktop::preferred_apps::find_preferred_app(&path_str, preferred_apps);
+    let on_launch = Rc::clone(on_launch);
     button.connect_clicked(move |_| {
         let cmd = if let Some(ref app) = preferred_cmd {
             let mut c = std::process::Command::new(app);

@@ -13,7 +13,12 @@ pub fn connect_search(ctx: &WellContext) {
     let in_search_mode = Rc::new(Cell::new(false));
 
     search_entry.connect_search_changed(move |entry| {
-        let phrase = entry.text().to_string();
+        // `GString` derefs to `&str`, so the body can pattern-match and
+        // strip prefixes on a borrowed slice — we only allocate a
+        // `String` at the one site that needs owned data
+        // (`active_search` in DrawerState).
+        let phrase_gs = entry.text();
+        let phrase: &str = &phrase_gs;
 
         if phrase.is_empty() {
             if in_search_mode.get() {
@@ -28,24 +33,28 @@ pub fn connect_search(ctx: &WellContext) {
         in_search_mode.set(true);
 
         // Command mode (: prefix) — clear search state so rebuilds don't restore stale results
-        if phrase.starts_with(':') {
+        if let Some(cmd_text) = phrase.strip_prefix(':') {
+            // A previously-typed phrase may have an async file-search worker
+            // still running — bump the dispatcher's generation so its results
+            // get dropped at the consumer instead of landing on this
+            // command-mode well.
+            ctx.file_search.invalidate();
             ctx.state.borrow_mut().active_search.clear();
             while let Some(child) = ctx.well.first_child() {
                 ctx.well.remove(&child);
             }
             ctx.pinned_box.set_visible(false);
-            if phrase.len() > 1 {
-                let cmd_text = phrase.strip_prefix(':').unwrap_or(&phrase);
+            if cmd_text.is_empty() {
+                ctx.status_label.set_text("Execute a command");
+            } else {
                 ctx.status_label
                     .set_text(&format!("Execute \"{}\"", cmd_text));
-            } else {
-                ctx.status_label.set_text("Execute a command");
             }
             return;
         }
 
         // Search mode — track in state and show matching apps + files
-        ctx.state.borrow_mut().active_search = phrase.clone();
-        well_builder::build_search_results(&ctx, &phrase);
+        ctx.state.borrow_mut().active_search = phrase.to_string();
+        well_builder::build_search_results(&ctx, phrase);
     });
 }

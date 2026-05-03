@@ -2,7 +2,7 @@ use crate::config::DrawerConfig;
 use crate::state::DrawerState;
 use crate::ui::file_search::FileSearchDispatcher;
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::Path;
 use std::rc::Rc;
 
 /// Shared context for well/category/search UI builders.
@@ -15,7 +15,7 @@ pub struct WellContext {
     pub pinned_box: gtk4::Box,
     pub config: Rc<DrawerConfig>,
     pub state: Rc<RefCell<DrawerState>>,
-    pub pinned_file: Rc<PathBuf>,
+    pub pinned_file: Rc<Path>,
     pub on_launch: Rc<dyn Fn()>,
     pub status_label: gtk4::Label,
     pub search_entry: gtk4::SearchEntry,

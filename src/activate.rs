@@ -21,7 +21,7 @@ use nwg_common::config::paths;
 use nwg_common::pinning;
 use nwg_common::signals::WindowCommand;
 use std::cell::{Cell, RefCell};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 /// Mac-style drawer CSS, embedded at compile time.
@@ -36,8 +36,8 @@ const DRAWER_CSS: &str = include_str!("assets/drawer.css");
 pub(crate) struct DrawerInit {
     pub(crate) config: Rc<DrawerConfig>,
     pub(crate) css_path: Rc<PathBuf>,
-    pub(crate) pinned_file: Rc<PathBuf>,
-    pub(crate) data_home: Rc<Option<PathBuf>>,
+    pub(crate) pinned_file: Rc<Path>,
+    pub(crate) data_home: Option<PathBuf>,
     pub(crate) app_dirs: Vec<PathBuf>,
     pub(crate) exclusions: Vec<String>,
     pub(crate) compositor: Rc<dyn nwg_common::compositor::Compositor>,
@@ -204,7 +204,7 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
     if config.has_power_bar() {
         main_vbox.append(&ui::power_bar::build_power_bar(
             &config,
-            Rc::clone(&on_launch),
+            &on_launch,
             data_home.as_deref(),
             &status_label,
         ));
