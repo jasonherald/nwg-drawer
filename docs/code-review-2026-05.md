@@ -12,7 +12,7 @@ Five independent reviews ran in parallel (Opus 4.7 1M, read-only):
 - **D.** Documentation + naming + magic numbers + dead code
 - **E.** Testability + test coverage
 
-Total findings: ~50 raw items, deduped and grouped into 19 PR-sized issues plus a parent epic. CLAUDE.md-endorsed patterns (WellContext, exmex, init_or_null, capture-phase nav) are excluded from change.
+Total findings: ~50 raw items, deduped and grouped into 22 PR-sized issues plus a parent epic. CLAUDE.md-endorsed patterns (WellContext, exmex, init_or_null, capture-phase nav) are excluded from change.
 
 ## Three load-bearing facts that fell out of the review
 
@@ -373,11 +373,11 @@ The waves above are in priority order. Suggested iteration:
 7. **Wave 7** is coverage backfill + the optional integration test (Issues 20–22)
 
 Estimated total effort:
-- 9 × S (~9h) — Issues 1, 2, 5, 7, 8, 9, 14, 16, 17, 18, 19, 21 (12 actually, but bundled work in some)
-- 8 × M (~32h) — Issues 3, 4, 6, 10, 11, 13, 15, 20, 22
+- 13 × S (~13h) — Issues 1, 2, 5, 7, 8, 9, 12, 14, 16, 17, 18, 19, 21
+- 9 × M (~36h) — Issues 3, 4, 6, 10, 11, 13, 15, 20, 22
 - 0 × L
 
-Realistic calendar: 5–10 working days of focused refactoring.
+Total: ~49h, or 5–10 working days of focused refactoring.
 
 ## How to file
 
