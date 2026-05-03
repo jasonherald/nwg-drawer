@@ -22,12 +22,16 @@ pub(crate) fn handle_open_close(config: &DrawerConfig) {
         } else {
             signals::sig_hide()
         };
-        signals::send_signal_to_pid(pid, sig);
-        log::info!(
-            "Sent {} signal to running instance (pid {})",
-            if config.open { "show" } else { "hide" },
-            pid
-        );
+        let action = if config.open { "show" } else { "hide" };
+        if signals::send_signal_to_pid(pid, sig) {
+            log::info!("Sent {} signal to running instance (pid {})", action, pid);
+        } else {
+            log::error!(
+                "Failed to send {} signal to running instance (pid {}) — signal call returned false (stale PID, permissions, etc.)",
+                action,
+                pid
+            );
+        }
     } else {
         log::warn!("No running drawer instance found");
     }

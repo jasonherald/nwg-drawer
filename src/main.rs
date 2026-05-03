@@ -17,6 +17,7 @@ use gtk4::prelude::*;
 use nwg_common::config::paths;
 use nwg_common::desktop::dirs::get_app_dirs;
 use nwg_common::signals;
+use std::cell::Cell;
 use std::rc::Rc;
 
 fn main() {
@@ -31,13 +32,17 @@ fn main() {
         env_logger::init();
     }
 
-    if config.pb_auto {
-        power_bar_detect::auto_detect_power_bar(&mut config);
-    }
-
+    // Lifecycle gates first — `--open` / `--close` and finding an existing
+    // instance both exit before reaching pb_auto, so doing autodetect first
+    // would waste PATH probes and a `systemctl can-suspend` syscall on the
+    // hot exit path.
     lifecycle::handle_open_close(&config);
     lifecycle::handle_existing_instance(&config);
     let _lock = lifecycle::acquire_singleton_lock();
+
+    if config.pb_auto {
+        power_bar_detect::auto_detect_power_bar(&mut config);
+    }
 
     let compositor: Rc<dyn nwg_common::compositor::Compositor> =
         Rc::from(nwg_common::compositor::init_or_null(config.wm));
@@ -84,7 +89,19 @@ fn main() {
         sig_rx,
     });
 
+    // Guard against repeated activation. Our singleton lock plus GTK's D-Bus
+    // primary-instance registration normally hold this to one fire per
+    // process, but a race where the lock file is lost between acquire and
+    // gtk init could land a remote-activate from a second process. Building
+    // a second window stack here would duplicate listeners, double-consume
+    // `sig_rx`, and leave the original drawer in a broken state. Easier to
+    // refuse the second activate.
+    let activated = Cell::new(false);
     app.connect_activate(move |app| {
+        if activated.replace(true) {
+            log::warn!("connect_activate fired twice; ignoring duplicate");
+            return;
+        }
         activate::activate_drawer(app, &init);
     });
 
