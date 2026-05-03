@@ -77,7 +77,8 @@ src/
     ├── search_handler.rs
     ├── app_grid.rs, file_search.rs
     ├── widgets.rs
-    ├── math.rs           # exmex-based expression evaluator (see Conventions)
+    ├── math.rs           # exmex-based expression evaluator + tests (see Conventions)
+    ├── math_widget.rs    # GTK widget builder for the inline math result row
     ├── categories.rs
     ├── power_bar.rs
     ├── search.rs

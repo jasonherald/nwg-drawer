@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   denied, broken symlink, etc.) no longer hide the app entirely — the
   launcher now falls through to the system-wide copy. Previously a single
   bad user override caused the app to disappear from the grid.
+- Math result "Copy" button now copies negative results correctly. Values
+  like `-5` or `-3.14` previously failed silently because `wl-copy` parsed
+  the leading `-` as an unknown flag.
 
 ### Removed
 

@@ -66,7 +66,7 @@ pub fn build_search_results(ctx: &WellContext, phrase: &str) {
     ctx.pinned_box.set_visible(false);
 
     // Inline math result (e.g. "1+1 = 2") shown above app results
-    if let Some(math_widget) = ui::math::build_math_result(phrase) {
+    if let Some(math_widget) = ui::math_widget::build_math_result(phrase) {
         ctx.well.append(&math_widget);
     }
 

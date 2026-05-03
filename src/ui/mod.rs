@@ -3,6 +3,7 @@ pub mod categories;
 pub mod constants;
 pub mod file_search;
 pub mod math;
+pub mod math_widget;
 pub mod navigation;
 pub mod power_bar;
 pub mod search;

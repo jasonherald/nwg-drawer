@@ -46,21 +46,20 @@ pub const DIVIDER_VERTICAL_MARGIN: i32 = 8;
 /// Side margin for section dividers (left/right padding).
 pub const DIVIDER_SIDE_MARGIN: i32 = 16;
 
-/// Font size for inline math result text and copy button.
-pub const MATH_FONT_SIZE: i32 = 20;
-
-/// Horizontal margin between math result/button and the divider.
-pub const MATH_SPACING: i32 = 12;
-
-/// Border radius for the math copy button.
-pub const MATH_BORDER_RADIUS: i32 = 6;
-
-/// Vertical/horizontal padding inside the math copy button.
-pub const MATH_BUTTON_PADDING_V: i32 = 4;
-pub const MATH_BUTTON_PADDING_H: i32 = 16;
+// Math result-row sizing (font-size, spacing, border-radius, padding) lives
+// in `assets/drawer.css` under the `.math-result` / `.math-copy` rules
+// rather than here — those values are only consumed by the static stylesheet,
+// not by Rust-side widget construction. See issue #35.
 
 /// Vertical spacing between math result row and "Copied!" label.
 pub const MATH_VBOX_SPACING: i32 = 4;
+
+/// Horizontal spacing between widgets within the math result row
+/// (label / divider / copy button). The label sets its own right-margin
+/// via the `.math-result` CSS rule and the copy button sets its own
+/// left-margin via `.math-copy`, so the box-level spacing is intentionally
+/// 0 — having both wouldn't compose visibly.
+pub const MATH_ROW_SPACING: i32 = 0;
 
 /// Duration in seconds before the "Copied!" confirmation label auto-hides.
 pub const COPIED_LABEL_TIMEOUT_SECS: u64 = 2;
