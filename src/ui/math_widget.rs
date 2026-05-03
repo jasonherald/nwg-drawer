@@ -106,7 +106,9 @@ fn append_copy_button(row: &gtk4::Box, vbox: &gtk4::Box, result_copy: String) {
     let timer_ref = std::rc::Rc::clone(&pending_timer);
     copy_btn.connect_clicked(move |_| {
         let mut cmd = std::process::Command::new("wl-copy");
-        cmd.arg(&result_copy);
+        // `--` ends wl-copy's option parsing so negative results (e.g. `-5`,
+        // `-3.14`) aren't mistaken for unknown flags.
+        cmd.arg("--").arg(&result_copy);
         match cmd.spawn() {
             Ok(child) => nwg_common::launch::reap_child(child, "wl-copy".to_string()),
             Err(e) => {
