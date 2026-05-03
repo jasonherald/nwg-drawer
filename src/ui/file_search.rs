@@ -280,7 +280,11 @@ fn file_type_icon(path: &Path) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::shorten_home;
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    // ── shorten_home ────────────────────────────────────────────────────
 
     #[test]
     fn shortens_path_under_home() {
@@ -323,5 +327,195 @@ mod tests {
         // When $HOME is unset we get an empty string, and "".starts_with("")
         // is always true — so every path used to gain a leading "~".
         assert_eq!(shorten_home("/etc/something", ""), "/etc/something");
+    }
+
+    // ── is_excluded ─────────────────────────────────────────────────────
+
+    #[test]
+    fn is_excluded_returns_false_for_empty_list() {
+        assert!(!is_excluded("any/path/here", &[]));
+    }
+
+    #[test]
+    fn is_excluded_matches_substring() {
+        // The check is `relative.contains(ex)` — a literal substring match,
+        // not a glob or path-component match. Pin that behavior so future
+        // refactors don't silently change semantics across user setups.
+        assert!(is_excluded(
+            "myproject/target/build.rs",
+            &["target".to_string()]
+        ));
+    }
+
+    #[test]
+    fn is_excluded_substring_match_catches_node_modules_via_node() {
+        // Documented gotcha: the substring rule means an exclusion of
+        // `"node"` also excludes anything containing `node` — including
+        // `node_modules`, `nodemcu/`, etc.
+        assert!(is_excluded(
+            "frontend/node_modules/x",
+            &["node".to_string()]
+        ));
+    }
+
+    // ── file_type_icon ──────────────────────────────────────────────────
+
+    #[test]
+    fn file_type_icon_recognized_extensions() {
+        assert_eq!(file_type_icon(Path::new("doc.pdf")), "application-pdf");
+        assert_eq!(file_type_icon(Path::new("clip.mp4")), "video-x-generic");
+        assert_eq!(file_type_icon(Path::new("song.mp3")), "audio-x-generic");
+        assert_eq!(
+            file_type_icon(Path::new("archive.zst")),
+            "package-x-generic"
+        );
+        assert_eq!(file_type_icon(Path::new("main.rs")), "text-x-script");
+        assert_eq!(file_type_icon(Path::new("page.html")), "text-html");
+    }
+
+    #[test]
+    fn file_type_icon_unknown_extension_falls_back() {
+        assert_eq!(file_type_icon(Path::new("blob.xyz")), "text-x-generic");
+    }
+
+    #[test]
+    fn file_type_icon_no_extension_falls_back() {
+        assert_eq!(file_type_icon(Path::new("README")), "text-x-generic");
+    }
+
+    #[test]
+    fn file_type_icon_is_case_insensitive() {
+        // Pinned: extension lookup lowercases the input. Otherwise common
+        // shouty filenames like `.PDF` or `.JPG` wouldn't match.
+        assert_eq!(file_type_icon(Path::new("scan.PDF")), "application-pdf");
+        assert_eq!(file_type_icon(Path::new("photo.JPG")), "image-x-generic");
+    }
+
+    // ── walk_directory ──────────────────────────────────────────────────
+    //
+    // Fixture helper: lays down a directory tree under `root` from a list of
+    // (relative-path, kind) tuples. Files get touched empty; "dir" entries
+    // create directories.
+    fn build_tree(root: &Path, entries: &[(&str, &str)]) {
+        for (rel, kind) in entries {
+            let full = root.join(rel);
+            match *kind {
+                "dir" => fs::create_dir_all(&full).expect("create_dir_all"),
+                _ => {
+                    if let Some(parent) = full.parent() {
+                        fs::create_dir_all(parent).expect("create_dir_all parent");
+                    }
+                    fs::File::create(&full).expect("touch file");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn walk_directory_caps_results_at_max() {
+        let root = tempfile::tempdir().expect("tempdir");
+        // 30 matching files spread across 3 nesting levels.
+        let mut entries = Vec::new();
+        for i in 0..10 {
+            entries.push((format!("match-top-{}.txt", i), "file".to_string()));
+        }
+        for i in 0..10 {
+            entries.push((format!("a/match-mid-{}.txt", i), "file".to_string()));
+        }
+        for i in 0..10 {
+            entries.push((format!("a/b/match-deep-{}.txt", i), "file".to_string()));
+        }
+        let entries_ref: Vec<(&str, &str)> = entries
+            .iter()
+            .map(|(p, k)| (p.as_str(), k.as_str()))
+            .collect();
+        build_tree(root.path(), &entries_ref);
+
+        let results = walk_directory(root.path(), "match", &[], 7);
+        assert!(
+            results.len() <= 7,
+            "expected ≤7 results, got {}",
+            results.len()
+        );
+    }
+
+    #[test]
+    fn walk_directory_skips_excluded_subtree() {
+        let root = tempfile::tempdir().expect("tempdir");
+        build_tree(
+            root.path(),
+            &[
+                ("src/note.txt", "file"),
+                ("target/note.txt", "file"),
+                ("docs/note.txt", "file"),
+            ],
+        );
+
+        let results = walk_directory(root.path(), "note", &["target".to_string()], 100);
+        let paths: Vec<String> = results
+            .iter()
+            .map(|r| r.path.to_string_lossy().to_string())
+            .collect();
+        assert!(
+            paths.iter().any(|p| p.contains("src/note.txt")),
+            "missing src result; got {:?}",
+            paths
+        );
+        assert!(
+            paths.iter().any(|p| p.contains("docs/note.txt")),
+            "missing docs result; got {:?}",
+            paths
+        );
+        assert!(
+            !paths.iter().any(|p| p.contains("target/note.txt")),
+            "target should be excluded; got {:?}",
+            paths
+        );
+    }
+
+    #[test]
+    fn walk_directory_does_not_panic_on_unreadable_subdir() {
+        // A directory we can't read (e.g. permissions failure) must not
+        // panic the walk — `read_dir` errors are swallowed via `match … Err
+        // => return`. Pin that behavior so a future refactor that introduces
+        // an `unwrap` here doesn't crash the drawer's file search on a user's
+        // tree.
+        let root = tempfile::tempdir().expect("tempdir");
+        build_tree(
+            root.path(),
+            &[("readable/match.txt", "file"), ("locked", "dir")],
+        );
+
+        // Drop read permission on the locked dir. If chmod fails (e.g. ACLs
+        // or unusual filesystem), skip rather than fail the test — we're
+        // pinning behavior, not testing chmod itself.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let locked = root.path().join("locked");
+            fs::create_dir_all(locked.join("inner")).ok();
+            fs::File::create(locked.join("inner/match-locked.txt")).ok();
+            let perms = fs::Permissions::from_mode(0o000);
+            if fs::set_permissions(&locked, perms).is_err() {
+                return;
+            }
+
+            // Should return without panicking. The unreadable subtree is
+            // silently skipped; the readable one is still walked.
+            let results = walk_directory(root.path(), "match", &[], 100);
+            let paths: Vec<String> = results
+                .iter()
+                .map(|r| r.path.to_string_lossy().to_string())
+                .collect();
+            assert!(
+                paths.iter().any(|p| p.contains("readable/match.txt")),
+                "readable subtree should still be walked; got {:?}",
+                paths
+            );
+
+            // Restore permissions so tempfile cleanup can recurse into the
+            // dir to remove it.
+            let _ = fs::set_permissions(&locked, fs::Permissions::from_mode(0o755));
+        }
     }
 }
