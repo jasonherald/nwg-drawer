@@ -1,5 +1,8 @@
 # nwg-drawer
 
+[![crates.io](https://img.shields.io/crates/v/nwg-drawer.svg)](https://crates.io/crates/nwg-drawer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Launchpad-style application launcher and file search overlay for [Hyprland](https://hyprland.org/), [Sway](https://swaywm.org/), and any Wayland compositor with layer-shell support. Written in Rust.
 
 Ported from [nwg-piotr/nwg-drawer](https://github.com/nwg-piotr/nwg-drawer) (Go) with enhancements: compositor-neutral IPC via the Compositor trait, shared pin state with [`nwg-dock`](https://github.com/jasonherald/nwg-dock), and graceful fallback on unsupported compositors (Niri, river, Openbox).
@@ -41,7 +44,17 @@ sudo apt install libgtk-4-dev libgtk4-layer-shell-dev
 sudo dnf install gtk4-devel gtk4-layer-shell-devel
 ```
 
-### `make install` — three invocations
+### From crates.io (recommended for end users)
+
+```bash
+cargo install nwg-drawer
+```
+
+Installs only the binary; the drawer-installed data assets (`drawer.css`, category icons) are not copied. The drawer falls back to its embedded defaults when the filesystem assets are missing, so `cargo install` alone gets you a working drawer; `make install` adds user-customizable CSS and icons at the system location.
+
+### `make install` — for source builds and distro packagers
+
+The Makefile install path drops the binary and the bundled CSS + category icons. Three invocations depending on where the binary should land:
 
 **Default — system-wide (needs sudo):**
 
@@ -64,14 +77,6 @@ make install PREFIX=$HOME/.local BINDIR=$HOME/.cargo/bin
 ```bash
 sudo make install PREFIX=/usr
 ```
-
-### From crates.io
-
-```bash
-cargo install nwg-drawer
-```
-
-Installs only the binary; the drawer-installed data assets (`drawer.css`, category icons) are not copied. The drawer falls back to its embedded defaults when the filesystem assets are missing, so `cargo install` alone gets you a working drawer; `make install` adds user-customizable CSS and icons at the system location.
 
 ## Usage
 

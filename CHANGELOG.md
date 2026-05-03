@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > full pre-split history is preserved in the monorepo's git log; this file
 > only documents changes from v0.3.0 onward.
 
-## [0.3.0] — Unreleased
+## [0.3.0] — 2026-04-20
 
 First standalone release. Extracts the drawer binary from
 [`mac-doc-hyprland`](https://github.com/jasonherald/mac-doc-hyprland) as its
