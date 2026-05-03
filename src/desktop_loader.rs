@@ -29,13 +29,17 @@ fn load_into(apps: &mut AppRegistry, app_dirs: &[PathBuf]) {
                 .to_string_lossy()
                 .to_string();
 
-            // First occurrence wins (matches Go behavior)
+            // First *successfully parsed* occurrence wins. Marking the id
+            // seen only after a successful parse means an unreadable user
+            // override (permission denied, broken symlink, etc.) falls
+            // through to the system-wide copy instead of erasing the app
+            // from the launcher.
             if seen_ids.contains(&id) {
                 continue;
             }
-            seen_ids.insert(id.clone());
-
-            process_desktop_file(&id, &path, apps);
+            if process_desktop_file(&id, &path, apps) {
+                seen_ids.insert(id);
+            }
         }
     }
 
@@ -53,7 +57,12 @@ fn load_into(apps: &mut AppRegistry, app_dirs: &[PathBuf]) {
 }
 
 /// Parses a single .desktop file and adds it to the registry if valid.
-fn process_desktop_file(id: &str, path: &Path, apps: &mut AppRegistry) {
+///
+/// Returns `true` when the file parsed successfully (even if `NoDisplay`
+/// suppressed the visible-registry insertion); `false` when `parse_desktop_file`
+/// failed (e.g. permission denied) and the caller should leave the id
+/// unclaimed so a lower-priority copy gets a chance.
+fn process_desktop_file(id: &str, path: &Path, apps: &mut AppRegistry) -> bool {
     match entry::parse_desktop_file(id, path) {
         Ok(de) => {
             // `id2entry` retains every parsed entry — pinning may reference
@@ -72,9 +81,11 @@ fn process_desktop_file(id: &str, path: &Path, apps: &mut AppRegistry) {
                 }
                 apps.entries.push(de);
             }
+            true
         }
         Err(e) => {
             log::warn!("Failed to parse {}: {}", path.display(), e);
+            false
         }
     }
 }
@@ -195,6 +206,59 @@ mod tests {
             1,
             "kdenlive should be in AudioVideo exactly once"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_higher_priority_override_falls_through_to_lower_priority_copy() {
+        // If the user-dir override is unreadable (permissions, broken
+        // symlink, etc.), a naive "first seen wins" dedup would erase the
+        // app from the launcher entirely. The fix marks an id as seen only
+        // after a *successful* parse, so the system-dir copy still wins.
+        use std::os::unix::fs::PermissionsExt;
+
+        let user_dir = tempfile::tempdir().expect("user tempdir");
+        let system_dir = tempfile::tempdir().expect("system tempdir");
+        write_desktop(
+            user_dir.path(),
+            "firefox",
+            "Firefox",
+            "firefox-user",
+            "Network;",
+        );
+        write_desktop(
+            system_dir.path(),
+            "firefox",
+            "Firefox",
+            "firefox-system",
+            "Network;",
+        );
+
+        // Strip read permission from the user-dir copy so File::open fails.
+        let user_path = user_dir.path().join("firefox.desktop");
+        if fs::set_permissions(&user_path, fs::Permissions::from_mode(0o000)).is_err() {
+            // Some filesystems / CI sandboxes ignore chmod; treat as skip.
+            return;
+        }
+
+        let mut apps = AppRegistry::new();
+        load_into(
+            &mut apps,
+            &[
+                user_dir.path().to_path_buf(),
+                system_dir.path().to_path_buf(),
+            ],
+        );
+
+        // Restore permissions so tempfile cleanup can remove the file.
+        let _ = fs::set_permissions(&user_path, fs::Permissions::from_mode(0o644));
+
+        assert_eq!(
+            apps.entries.len(),
+            1,
+            "system-dir copy should still load when user-dir override is unreadable"
+        );
+        assert_eq!(apps.entries[0].exec, "firefox-system");
     }
 
     #[test]

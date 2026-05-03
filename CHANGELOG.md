@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `$HOME` and the case where `$HOME` is unset. Previously `/home/userfoo/Docs`
   would render as `~foo/Docs` (sibling of `/home/user`), and an unset `$HOME`
   caused every path to gain a leading `~`. Resolves #33.
+- Unreadable `.desktop` overrides in higher-priority app dirs (permission
+  denied, broken symlink, etc.) no longer hide the app entirely — the
+  launcher now falls through to the system-wide copy. Previously a single
+  bad user override caused the app to disappear from the grid.
 
 ### Removed
 
