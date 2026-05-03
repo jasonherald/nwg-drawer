@@ -1,5 +1,8 @@
 # nwg-drawer
 
+[![crates.io](https://img.shields.io/crates/v/nwg-drawer.svg)](https://crates.io/crates/nwg-drawer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Launchpad-style application launcher and file search overlay for [Hyprland](https://hyprland.org/), [Sway](https://swaywm.org/), and any Wayland compositor with layer-shell support. Written in Rust.
 
 Ported from [nwg-piotr/nwg-drawer](https://github.com/nwg-piotr/nwg-drawer) (Go) with enhancements: compositor-neutral IPC via the Compositor trait, shared pin state with [`nwg-dock`](https://github.com/jasonherald/nwg-dock), and graceful fallback on unsupported compositors (Niri, river, Openbox).
