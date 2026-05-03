@@ -19,7 +19,10 @@ pub fn app_icon_button(
     button.set_has_frame(false);
     button.add_css_class("app-button");
 
-    let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+    let vbox = gtk4::Box::new(
+        gtk4::Orientation::Vertical,
+        constants::APP_BUTTON_VBOX_SPACING,
+    );
     vbox.set_halign(gtk4::Align::Center);
 
     // Icon — try theme/file, fall back to generic "application-x-executable"

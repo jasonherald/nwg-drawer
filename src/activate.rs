@@ -27,6 +27,16 @@ use std::rc::Rc;
 /// Mac-style drawer CSS, embedded at compile time.
 const DRAWER_CSS: &str = include_str!("assets/drawer.css");
 
+/// Window background color (RGB) used in the runtime opacity-override
+/// CSS rule. Matches the `window` rule baked into `assets/drawer.css`;
+/// kept in sync manually since `--opacity` flips it from a static
+/// stylesheet rule into a per-instance value.
+const WINDOW_BG_RGB: (u8, u8, u8) = (22, 22, 30);
+
+/// Maximum legal value of the `--opacity` flag. Larger values are
+/// clamped to this before being divided into a 0..=1 alpha component.
+const OPACITY_MAX_PERCENT: u8 = 100;
+
 /// Bundle of values passed from `main` to the GTK activate callback.
 ///
 /// `connect_activate` can fire multiple times in a resident process
@@ -65,10 +75,12 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
     nwg_common::config::css::load_css_from_data(DRAWER_CSS);
 
     // Apply user-configurable opacity (overrides the default in embedded CSS)
-    let opacity = config.opacity.min(100) as f64 / 100.0;
+    let opacity =
+        f64::from(config.opacity.min(OPACITY_MAX_PERCENT)) / f64::from(OPACITY_MAX_PERCENT);
+    let (r, g, b) = WINDOW_BG_RGB;
     let opacity_css = format!(
-        "window {{ background-color: rgba(22, 22, 30, {:.2}); }}",
-        opacity
+        "window {{ background-color: rgba({}, {}, {}, {:.2}); }}",
+        r, g, b, opacity
     );
     nwg_common::config::css::load_css_override(&opacity_css);
 
@@ -128,7 +140,7 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
     // Pinned items (above scroll, fixed — never scrolls out of view)
     let pinned_box = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
     pinned_box.set_halign(gtk4::Align::Center);
-    pinned_box.set_margin_top(4);
+    pinned_box.set_margin_top(ui::constants::PINNED_BOX_TOP_MARGIN);
 
     // Scrolled window (only app grid scrolls)
     let scrolled = gtk4::ScrolledWindow::new();
@@ -137,7 +149,7 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
 
     // Right-click on scrolled area → close drawer
     let right_click = gtk4::GestureClick::new();
-    right_click.set_button(3);
+    right_click.set_button(ui::constants::MOUSE_BUTTON_RIGHT);
     // Bubble phase so child button gestures (pin toggle) fire first
     right_click.set_propagation_phase(gtk4::PropagationPhase::Bubble);
     let win_rc = win.clone();

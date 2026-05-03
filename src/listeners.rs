@@ -11,6 +11,13 @@ use nwg_common::signals::WindowCommand;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+/// Cadence for the compositor active-window poll. Drives focus-loss
+/// detection — when the active window changes away from the drawer,
+/// the focus detector closes the drawer. Lower values reduce close-
+/// latency at the cost of more compositor IPC; 300 ms is the
+/// pre-existing tuning point inherited from the Go upstream.
+const ACTIVE_WINDOW_POLL_MS: u64 = 300;
+
 /// Sets up keyboard handler for the drawer window.
 ///
 /// - Navigation keys (arrows, Tab, Page Up/Down, Home/End) propagate to
@@ -133,14 +140,17 @@ pub fn setup_focus_detector(
     let compositor = Rc::clone(compositor);
     let baseline: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
 
-    glib::timeout_add_local(std::time::Duration::from_millis(300), move || {
-        if !win.is_visible() {
-            *baseline.borrow_mut() = None;
-            return glib::ControlFlow::Continue;
-        }
-        poll_active_window(&compositor, &baseline, &on_launch);
-        glib::ControlFlow::Continue
-    });
+    glib::timeout_add_local(
+        std::time::Duration::from_millis(ACTIVE_WINDOW_POLL_MS),
+        move || {
+            if !win.is_visible() {
+                *baseline.borrow_mut() = None;
+                return glib::ControlFlow::Continue;
+            }
+            poll_active_window(&compositor, &baseline, &on_launch);
+            glib::ControlFlow::Continue
+        },
+    );
 }
 
 /// Sets up inotify-based file watcher for pin and desktop file changes.

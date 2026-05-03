@@ -216,7 +216,7 @@ fn build_pinned_button(
     let path = Rc::clone(&ctx.pinned_file);
     let rebuild = Rc::clone(on_rebuild);
     let gesture = gtk4::GestureClick::new();
-    gesture.set_button(3);
+    gesture.set_button(super::constants::MOUSE_BUTTON_RIGHT);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
 

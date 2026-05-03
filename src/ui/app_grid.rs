@@ -124,7 +124,7 @@ fn build_button(
         widgets::apply_pin_badge(&button);
     }
 
-    let tooltip = widgets::truncate(desc, 120);
+    let tooltip = widgets::truncate(desc, super::constants::APP_TOOLTIP_MAX_CHARS);
     if !tooltip.is_empty() {
         button.set_tooltip_text(Some(&tooltip));
     }
@@ -173,7 +173,7 @@ fn connect_pin(
     let path = Rc::clone(pinned_file);
     let rebuild = Rc::clone(rebuild);
     let gesture = gtk4::GestureClick::new();
-    gesture.set_button(3);
+    gesture.set_button(super::constants::MOUSE_BUTTON_RIGHT);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
 
