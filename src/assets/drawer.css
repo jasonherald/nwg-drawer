@@ -162,3 +162,37 @@ window.drawer-backdrop {
 flowboxchild {
     padding: 4px;
 }
+
+/* Inline math result row.
+ * Shown above the file-search list when the search phrase parses as a
+ * math expression. The "Copy" button shells out to wl-copy on click and
+ * surfaces a "Copied!" confirmation that auto-hides after 2 seconds.
+ *
+ * Sizing (font-size, padding, border-radius) was previously held in
+ * ui/constants.rs and runtime-injected via a `static Once` block; moved
+ * into this static stylesheet alongside the rest of the drawer's styles
+ * (issue #35). */
+.math-result {
+    font-size: 20px;
+    font-weight: bold;
+    margin-right: 12px;
+}
+.math-divider {
+    margin-left: 0;
+    margin-right: 0;
+}
+.math-copy {
+    font-size: 20px;
+    background: #5b9bd5;
+    color: white;
+    border-radius: 6px;
+    padding: 4px 16px;
+    margin-left: 12px;
+}
+.math-copy:hover {
+    background: #4a8bc2;
+}
+.math-copied {
+    color: #5b9bd5;
+    font-style: italic;
+}
