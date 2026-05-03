@@ -10,7 +10,6 @@ use nwg_common::pinning;
 use nwg_common::signals::WindowCommand;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::mpsc;
 
 /// Sets up keyboard handler for the drawer window.
 ///
@@ -145,6 +144,10 @@ pub fn setup_focus_detector(
 }
 
 /// Sets up inotify-based file watcher for pin and desktop file changes.
+///
+/// Events are delivered via `async_channel` and consumed by a glib
+/// future spawned on the main loop — no polling cadence, sub-ms
+/// latency from inotify event to UI rebuild.
 pub fn setup_file_watcher(
     app_dirs: &[std::path::PathBuf],
     ctx: &crate::ui::well_context::WellContext,
@@ -152,45 +155,98 @@ pub fn setup_file_watcher(
     let watch_rx = watcher::start_watcher(app_dirs, &ctx.pinned_file);
     let ctx = ctx.clone();
 
-    glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-        while let Ok(event) = watch_rx.try_recv() {
-            match event {
-                watcher::WatchEvent::DesktopFilesChanged => {
-                    log::info!("Desktop files changed, reloading...");
-                    desktop_loader::load_desktop_entries(&mut ctx.state.borrow_mut());
-                    well_builder::rebuild_preserving_category(&ctx);
+    /// Cap on events drained per coalesce batch. The drain catches up to
+    /// inotify production in practice (try_recv runs in nanoseconds; event
+    /// production is rate-limited by the kernel), but a hostile workload
+    /// that produces events as fast as we drain them could otherwise stall
+    /// the GTK main loop indefinitely. 512 is comfortably above any
+    /// realistic burst size (`pacman -Syu` peaks at a few hundred events)
+    /// while still bounding the worst-case drain time.
+    const MAX_WATCH_EVENTS_PER_BATCH: usize = 512;
+
+    glib::spawn_future_local(async move {
+        // Coalesce bursts. inotify can fire dozens of events for a single
+        // user-visible change (`watcher::start_watcher` doc spells this
+        // out — package installs are the worst case). Without coalescing,
+        // each event would trigger a synchronous rebuild on the GTK main
+        // loop, thrashing under exactly the workloads the watcher exists
+        // to handle. Pattern: await the first event, then drain everything
+        // that's already accumulated in the channel via `try_recv` (events
+        // that landed during the previous rebuild), then do at most one
+        // reload + rebuild for the whole batch.
+        loop {
+            let first = match watch_rx.recv().await {
+                Ok(ev) => ev,
+                Err(e) => {
+                    // Producer (inotify thread) dropped its sender. Either
+                    // the thread panicked / failed to create the watcher —
+                    // worth surfacing — or the process is shutting down,
+                    // in which case the log message goes nowhere harmful.
+                    log::error!("file-watcher channel closed: {e}");
+                    break;
                 }
-                watcher::WatchEvent::PinnedChanged => {
-                    log::info!("Pinned file changed, rebuilding...");
-                    ctx.state.borrow_mut().pinned = pinning::load_pinned(&ctx.pinned_file);
-                    well_builder::rebuild_preserving_category(&ctx);
-                }
+            };
+            let mut reload_desktop = matches!(first, watcher::WatchEvent::DesktopFilesChanged);
+            let mut reload_pinned = matches!(first, watcher::WatchEvent::PinnedChanged);
+
+            for _ in 0..MAX_WATCH_EVENTS_PER_BATCH {
+                let Ok(next) = watch_rx.try_recv() else {
+                    break;
+                };
+                reload_desktop |= matches!(next, watcher::WatchEvent::DesktopFilesChanged);
+                reload_pinned |= matches!(next, watcher::WatchEvent::PinnedChanged);
+            }
+
+            if reload_desktop {
+                log::info!("Desktop files changed, reloading...");
+                desktop_loader::load_desktop_entries(&mut ctx.state.borrow_mut());
+            }
+            if reload_pinned {
+                log::info!("Pinned file changed, rebuilding...");
+                ctx.state.borrow_mut().pinned = pinning::load_pinned(&ctx.pinned_file);
+            }
+            if reload_desktop || reload_pinned {
+                well_builder::rebuild_preserving_category(&ctx);
             }
         }
-        glib::ControlFlow::Continue
     });
 }
 
-/// Sets up signal handler polling for SIGRTMIN+1/2/3.
+/// Spawns the glib-main-loop consumer for SIGRTMIN+1/2/3 signals.
+///
+/// `main` bridges `nwg_common::signals`'s `mpsc::Receiver` to an
+/// `async_channel::Receiver` once at startup; this just attaches a
+/// glib future that awaits each command and dispatches it. Sub-ms
+/// latency from signal delivery to window action.
 pub fn setup_signal_poller(
     win: &gtk4::ApplicationWindow,
     search_entry: &gtk4::SearchEntry,
     well_ctx: &crate::ui::well_context::WellContext,
     focus_pending: &Rc<Cell<bool>>,
-    sig_rx: &Rc<mpsc::Receiver<WindowCommand>>,
+    sig_rx: &async_channel::Receiver<WindowCommand>,
     resident: bool,
 ) {
     let win = win.clone();
     let entry = search_entry.clone();
     let ctx = well_ctx.clone();
     let pending = Rc::clone(focus_pending);
-    let rx = Rc::clone(sig_rx);
+    let rx = sig_rx.clone();
 
-    glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-        while let Ok(cmd) = rx.try_recv() {
+    glib::spawn_future_local(async move {
+        loop {
+            let cmd = match rx.recv().await {
+                Ok(cmd) => cmd,
+                Err(e) => {
+                    // The bridge thread in main.rs drops its sender at
+                    // process shutdown (when the upstream RT-signal mpsc
+                    // disconnects). On the live path this means the
+                    // signal pipeline died — surface it.
+                    log::error!("signal channel closed: {e}");
+                    break;
+                }
+            };
             commands::handle_window_command(&win, &entry, &ctx, &pending, cmd, resident);
         }
-        glib::ControlFlow::Continue
     });
 }
 

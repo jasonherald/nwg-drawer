@@ -46,6 +46,13 @@ nix = { version = "0.31", features = ["signal", "process", "fs"] }
 # Migrated off `meval` because its nom 1.2.4 transitive dep was unmaintained.
 exmex = "0.20"
 
+# Cross-thread → glib-main-loop event channel for the inotify watcher and
+# the signal-handler bridge. Replaces the 100 ms `timeout_add_local`
+# polling pattern with sub-ms event delivery via `glib::spawn_future_local`
+# + `recv().await`. (`glib::MainContext::channel` is deprecated in glib
+# 0.21 in favor of executor-agnostic async channels.)
+async-channel = "2"
+
 [dev-dependencies]
 # Filesystem fixtures for unit tests (walk_directory, etc.).
 tempfile = "3"

@@ -12,17 +12,27 @@ pub enum WatchEvent {
 }
 
 /// Starts watching app directories and the pin cache file for changes.
-/// Returns a receiver that emits WatchEvent when relevant files change.
+///
+/// Returns an `async_channel::Receiver` so the consumer can attach to
+/// the glib main loop with `glib::spawn_future_local` + `.recv().await`
+/// — events arrive as the inotify thread sees them rather than at a
+/// fixed polling cadence.
 pub fn start_watcher(
     app_dirs: &[std::path::PathBuf],
     pin_file: &Path,
-) -> mpsc::Receiver<WatchEvent> {
-    let (tx, rx) = mpsc::channel();
+) -> async_channel::Receiver<WatchEvent> {
+    // Unbounded — file-system events are bursty (e.g. a package install
+    // can fire dozens of CREATE/MODIFY events) and bounding the channel
+    // would either drop events or block the inotify thread.
+    let (tx, rx) = async_channel::unbounded();
 
     let pin_path = pin_file.to_path_buf();
     let app_dir_list: Vec<_> = app_dirs.to_vec();
 
     std::thread::spawn(move || {
+        // Inner mpsc bridges the notify callback (non-async) to this
+        // thread's blocking for-loop. Stays mpsc — it's a same-thread
+        // pipeline, not a cross-thread → glib boundary.
         let (notify_tx, notify_rx) = mpsc::channel();
 
         let mut watcher = match notify::recommended_watcher(move |res: Result<Event, _>| {
@@ -40,8 +50,13 @@ pub fn start_watcher(
         register_watch_paths(&mut watcher, &app_dir_list, &pin_path);
 
         for event in notify_rx {
-            if let Some(watch_event) = classify_watch_event(&event, &pin_path) {
-                let _ = tx.send(watch_event); // Non-critical: receiver may have dropped
+            let Some(watch_event) = classify_watch_event(&event, &pin_path) else {
+                continue;
+            };
+            if tx.send_blocking(watch_event).is_err() {
+                // Glib-side receiver dropped — drawer is shutting down. Exit
+                // the thread so we don't spin forever on a dead channel.
+                break;
             }
         }
     });

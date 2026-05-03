@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Hardened category, search, and pin-toggle callbacks against re-entrant
   signal panics during pin/unpin I/O. Resolves #30.
+- RT-signal toggle/show/hide and inotify-driven file-watcher events now
+  reach the UI immediately instead of waiting for the old 100 ms poll
+  interval. Resolves #40.
 
 ### Fixed
 
