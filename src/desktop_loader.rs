@@ -211,21 +211,25 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn unreadable_higher_priority_override_falls_through_to_lower_priority_copy() {
-        // If the user-dir override is unreadable (permissions, broken
-        // symlink, etc.), a naive "first seen wins" dedup would erase the
+        // If the user-dir override is unreadable (broken symlink, permission
+        // denied, etc.), a naive "first seen wins" dedup would erase the
         // app from the launcher entirely. The fix marks an id as seen only
         // after a *successful* parse, so the system-dir copy still wins.
-        use std::os::unix::fs::PermissionsExt;
+        //
+        // Using a broken symlink rather than a chmod fixture: the chmod
+        // approach is bypassed under root / CAP_DAC_OVERRIDE and silently
+        // skipped on filesystems that ignore mode bits — both of which would
+        // mask a regression. A symlink to a missing target reliably triggers
+        // ENOENT in `File::open`, regardless of caller privilege.
+        use std::os::unix::fs::symlink;
 
         let user_dir = tempfile::tempdir().expect("user tempdir");
         let system_dir = tempfile::tempdir().expect("system tempdir");
-        write_desktop(
-            user_dir.path(),
-            "firefox",
-            "Firefox",
-            "firefox-user",
-            "Network;",
-        );
+        symlink(
+            user_dir.path().join("missing-firefox.desktop"),
+            user_dir.path().join("firefox.desktop"),
+        )
+        .expect("create broken symlink");
         write_desktop(
             system_dir.path(),
             "firefox",
@@ -233,13 +237,6 @@ mod tests {
             "firefox-system",
             "Network;",
         );
-
-        // Strip read permission from the user-dir copy so File::open fails.
-        let user_path = user_dir.path().join("firefox.desktop");
-        if fs::set_permissions(&user_path, fs::Permissions::from_mode(0o000)).is_err() {
-            // Some filesystems / CI sandboxes ignore chmod; treat as skip.
-            return;
-        }
 
         let mut apps = AppRegistry::new();
         load_into(
@@ -249,9 +246,6 @@ mod tests {
                 system_dir.path().to_path_buf(),
             ],
         );
-
-        // Restore permissions so tempfile cleanup can remove the file.
-        let _ = fs::set_permissions(&user_path, fs::Permissions::from_mode(0o644));
 
         assert_eq!(
             apps.entries.len(),
