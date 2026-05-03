@@ -399,3 +399,5 @@ gh issue create \
 The awk extractor stops at whichever comes first — the next `#### Issue N:` heading or the `---` wave separator — so each invocation captures exactly one issue's body. (The earlier `sed -n '/Issue N:/,/^---$/p'` slurped every issue from N to the end of the wave because `---` only appears between waves, not between issues.)
 
 Or drive the whole list from a small script that walks this doc. Each filed issue should link back here (`docs/code-review-2026-05.md`) for full context.
+
+[Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
