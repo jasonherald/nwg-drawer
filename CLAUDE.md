@@ -67,6 +67,7 @@ src/
 ├── listeners/
 │   └── commands.rs      # WindowOp state machine + GTK command handler + tests
 ├── watcher.rs           # inotify watcher thread (.desktop + pin-file)
+├── xdg_dirs.rs          # ~/.config/user-dirs.dirs parser → name→path map
 └── ui/
     ├── navigation.rs     # install_grid_nav — capture-phase arrow-key
     │                     # traversal across FlowBox grids (app grid,
