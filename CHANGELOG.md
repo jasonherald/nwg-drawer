@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `$HOME` and the case where `$HOME` is unset. Previously `/home/userfoo/Docs`
   would render as `~foo/Docs` (sibling of `/home/user`), and an unset `$HOME`
   caused every path to gain a leading `~`. Resolves #33.
+- Locked the registry invariant for `NoDisplay=true` `.desktop` entries:
+  they are no longer added to `apps.entries` / `apps.category_lists` at all,
+  only to `id2entry` (so pinned ids still resolve). The downstream display
+  paths already filtered them defensively, so no user-visible regression
+  was reachable today, but the invariant is now enforced at the source.
 
 ### Removed
 

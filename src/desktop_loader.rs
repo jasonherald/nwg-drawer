@@ -39,8 +39,11 @@ fn load_into(apps: &mut AppRegistry, app_dirs: &[PathBuf]) {
         }
     }
 
-    // Sort by localized name
-    apps.entries.sort_by_key(|a| a.name_loc.to_lowercase());
+    // Sort by localized name. `sort_by_cached_key` extracts each key once
+    // (vs `sort_by_key` which re-extracts on every comparison), saving N
+    // String allocations from `to_lowercase()` per startup.
+    apps.entries
+        .sort_by_cached_key(|a| a.name_loc.to_lowercase());
 
     log::info!(
         "Loaded {} desktop entries from {} directories",
@@ -53,17 +56,22 @@ fn load_into(apps: &mut AppRegistry, app_dirs: &[PathBuf]) {
 fn process_desktop_file(id: &str, path: &Path, apps: &mut AppRegistry) {
     match entry::parse_desktop_file(id, path) {
         Ok(de) => {
+            // `id2entry` retains every parsed entry — pinning may reference
+            // a NoDisplay desktop_id, and lookups should still resolve.
+            apps.id2entry.insert(de.desktop_id.clone(), de.clone());
+            // `entries` and `category_lists` are display-eligible only.
+            // Skipping NoDisplay entries here is the canonical filter; the
+            // downstream guards in `app_grid` and `well_builder` remain as
+            // defense-in-depth.
             if !de.no_display {
-                // Assign to ALL matching categories (matches Go behavior)
                 for cat in assign_categories(&de.category) {
                     apps.category_lists
                         .entry(cat.to_string())
                         .or_default()
                         .push(de.desktop_id.clone());
                 }
+                apps.entries.push(de);
             }
-            apps.id2entry.insert(de.desktop_id.clone(), de.clone());
-            apps.entries.push(de);
         }
         Err(e) => {
             log::warn!("Failed to parse {}: {}", path.display(), e);
@@ -186,6 +194,38 @@ mod tests {
             av.iter().filter(|id| *id == "kdenlive").count(),
             1,
             "kdenlive should be in AudioVideo exactly once"
+        );
+    }
+
+    #[test]
+    fn no_display_entries_are_excluded_from_visible_registry_but_kept_in_id2entry() {
+        // NoDisplay=true desktop files (settings panels, GTK helper modules,
+        // service entries, etc.) should not appear in the launcher grid or
+        // category lists, but `id2entry` retains them so a pinned
+        // `desktop_id` can still resolve to its DesktopEntry.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let content = "[Desktop Entry]\n\
+                       Type=Application\n\
+                       Name=Hidden Helper\n\
+                       Exec=hidden-helper\n\
+                       Categories=Settings;\n\
+                       NoDisplay=true\n";
+        fs::write(dir.path().join("hidden.desktop"), content).expect("write desktop");
+
+        let mut apps = AppRegistry::new();
+        load_into(&mut apps, &[dir.path().to_path_buf()]);
+
+        assert!(
+            apps.entries.is_empty(),
+            "NoDisplay entry should not appear in apps.entries (visible registry)"
+        );
+        assert!(
+            apps.category_lists.is_empty(),
+            "NoDisplay entry should not appear in any category bucket"
+        );
+        assert!(
+            apps.id2entry.contains_key("hidden"),
+            "NoDisplay entry should still be in id2entry for pin/lookup paths"
         );
     }
 
