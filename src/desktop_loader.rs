@@ -233,7 +233,8 @@ mod tests {
     fn second_call_replaces_state_rather_than_appending() {
         // load_into clears state before reloading — pin that behavior so a
         // future "incremental update" optimization doesn't accidentally
-        // double the entry list on every reload.
+        // double the entry list (or category memberships, or id lookups)
+        // on every reload.
         let dir = tempfile::tempdir().expect("tempdir");
         write_desktop(dir.path(), "foo", "Foo", "foo", "Utility;");
 
@@ -243,5 +244,10 @@ mod tests {
 
         assert_eq!(apps.entries.len(), 1, "second load should not double up");
         assert_eq!(apps.id2entry.len(), 1);
+        assert_eq!(
+            apps.category_lists.values().map(Vec::len).sum::<usize>(),
+            1,
+            "second load should not duplicate category memberships"
+        );
     }
 }
