@@ -14,6 +14,12 @@ use nwg_common::signals::WindowCommand;
 use std::cell::Cell;
 use std::rc::Rc;
 
+/// Fallback delay before forcing focus on the search entry after a `Show`
+/// command, used only when the compositor never delivers `is_active_notify`
+/// (e.g. `--keyboard-on-demand` mode where the drawer never receives keyboard
+/// focus from the compositor).
+const FOCUS_FALLBACK_DELAY_MS: u64 = 200;
+
 /// What to do with the window for a given command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WindowOp {
@@ -65,20 +71,32 @@ pub(super) fn handle_window_command(
             clear_drawer_state(search_entry);
             focus_pending.set(true);
             win.set_visible(true);
-            // Fallback: if is_active_notify doesn't fire within 200ms
+            // Fallback: if is_active_notify doesn't fire in time
             // (e.g. --keyboard-on-demand mode), grab focus anyway.
             let entry = search_entry.clone();
             let ctx = well_ctx.clone();
             let pending = Rc::clone(focus_pending);
-            glib::timeout_add_local_once(std::time::Duration::from_millis(200), move || {
-                if pending.get() {
-                    pending.set(false);
-                    super::complete_show(&entry, &ctx);
-                }
-            });
+            glib::timeout_add_local_once(
+                std::time::Duration::from_millis(FOCUS_FALLBACK_DELAY_MS),
+                move || {
+                    if pending.get() {
+                        pending.set(false);
+                        super::complete_show(&entry, &ctx);
+                    }
+                },
+            );
         }
-        WindowOp::Hide => win.set_visible(false),
-        WindowOp::Close => super::quit_or_hide(win, false),
+        // A Hide / Close arriving inside the fallback window must disarm
+        // the pending flag, otherwise the still-scheduled timeout will
+        // run `complete_show` against a now-hidden window.
+        WindowOp::Hide => {
+            focus_pending.set(false);
+            win.set_visible(false);
+        }
+        WindowOp::Close => {
+            focus_pending.set(false);
+            super::quit_or_hide(win, false);
+        }
     }
 }
 
