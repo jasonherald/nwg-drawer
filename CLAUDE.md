@@ -69,7 +69,7 @@ src/
     ├── well_builder.rs   # WellContext (bundles 7+ params into one struct)
     ├── well_context.rs   # The WellContext struct itself
     ├── search_handler.rs
-    ├── app_grid.rs, pinned.rs, file_search.rs
+    ├── app_grid.rs, file_search.rs
     ├── widgets.rs
     ├── math.rs           # exmex-based expression evaluator (see Conventions)
     ├── categories.rs
