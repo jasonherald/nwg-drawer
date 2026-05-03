@@ -1,4 +1,4 @@
-use crate::xdg_dirs;
+use crate::xdg_dirs::{self, XdgDirBucket};
 use nwg_common::compositor::Compositor;
 use nwg_common::desktop::entry::DesktopEntry;
 use std::collections::HashMap;
@@ -63,7 +63,7 @@ pub struct DrawerState {
     /// App directories for icon/exec resolution.
     pub app_dirs: Vec<PathBuf>,
     /// XDG user directory map (e.g. "documents" → "/home/user/Documents").
-    pub user_dirs: HashMap<String, PathBuf>,
+    pub user_dirs: HashMap<XdgDirBucket, PathBuf>,
     /// Directories excluded from file search.
     pub exclusions: Vec<String>,
     /// Custom file associations (pattern → command).

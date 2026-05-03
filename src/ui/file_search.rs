@@ -22,8 +22,10 @@ pub fn search_files(
 
     let mut all_results: Vec<(String, std::path::PathBuf, bool)> = Vec::new();
 
-    for (dir_name, dir_path) in &user_dirs {
-        if dir_name == "home" || !dir_path.exists() {
+    for (bucket, dir_path) in &user_dirs {
+        // Skip $HOME itself — walking the entire home tree is what every
+        // other XDG dir is a more-targeted slice of.
+        if *bucket == crate::xdg_dirs::XdgDirBucket::Home || !dir_path.exists() {
             continue;
         }
         let remaining = config.fs_max_results.saturating_sub(all_results.len());
