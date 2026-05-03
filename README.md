@@ -44,7 +44,17 @@ sudo apt install libgtk-4-dev libgtk4-layer-shell-dev
 sudo dnf install gtk4-devel gtk4-layer-shell-devel
 ```
 
-### `make install` — three invocations
+### From crates.io (recommended for end users)
+
+```bash
+cargo install nwg-drawer
+```
+
+Installs only the binary; the drawer-installed data assets (`drawer.css`, category icons) are not copied. The drawer falls back to its embedded defaults when the filesystem assets are missing, so `cargo install` alone gets you a working drawer; `make install` adds user-customizable CSS and icons at the system location.
+
+### `make install` — for source builds and distro packagers
+
+The Makefile install path drops the binary and the bundled CSS + category icons. Three invocations depending on where the binary should land:
 
 **Default — system-wide (needs sudo):**
 
@@ -67,14 +77,6 @@ make install PREFIX=$HOME/.local BINDIR=$HOME/.cargo/bin
 ```bash
 sudo make install PREFIX=/usr
 ```
-
-### From crates.io
-
-```bash
-cargo install nwg-drawer
-```
-
-Installs only the binary; the drawer-installed data assets (`drawer.css`, category icons) are not copied. The drawer falls back to its embedded defaults when the filesystem assets are missing, so `cargo install` alone gets you a working drawer; `make install` adds user-customizable CSS and icons at the system location.
 
 ## Usage
 
