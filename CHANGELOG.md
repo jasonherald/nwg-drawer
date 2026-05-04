@@ -33,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Pin-indicator dots and other recent style additions now render on
+  fresh installs. The shipped `data/nwg-drawer/drawer.css` had drifted
+  from the embedded `src/assets/drawer.css` — new users got a 40-line
+  stub seeded into `~/.config/nwg-drawer/drawer.css` without `.pin-badge`,
+  `.drawer-search`, etc. The Makefile now installs `src/assets/drawer.css`
+  directly so the shipped and embedded copies can't drift again.
+- Embedded `.drawer-search` rule had `margin: 20px 25%`, which GTK4
+  rejects (CSS `%` is not allowed on `margin`); the rule was being
+  dropped at parse time. Removed the broken declaration — search
+  centering is already handled by `set_halign(Center)` in Rust.
 - File-search debounce no longer crashes the drawer when the user
   pauses long enough for the worker to fire and then keeps typing. The
   dispatcher used to retain the timeout's `SourceId` after it had
@@ -40,9 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already-removed source, which `glib::SourceId::remove` panics on in
   glib 0.21. The slot is now cleared from inside the timeout closure
   itself.
-
-### Fixed
-
 - Pin-toggle save failure no longer silently reorders the pinned row — the
   rollback path now restores the unpinned item at its original position
   instead of appending it. Pre-existing latent bug surfaced during #30.

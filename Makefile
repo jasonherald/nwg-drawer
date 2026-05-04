@@ -112,7 +112,7 @@ install-bin:
 install-data:
 	@echo "Installing data assets to $(DESTDIR)$(DATADIR)/$(DATA_APP_NAME)/"
 	install -d "$(DESTDIR)$(DATADIR)/$(DATA_APP_NAME)/img"
-	install -m 644 data/$(DATA_APP_NAME)/drawer.css "$(DESTDIR)$(DATADIR)/$(DATA_APP_NAME)/"
+	install -m 644 src/assets/drawer.css "$(DESTDIR)$(DATADIR)/$(DATA_APP_NAME)/"
 	install -m 644 data/$(DATA_APP_NAME)/img/*.svg "$(DESTDIR)$(DATADIR)/$(DATA_APP_NAME)/img/"
 
 uninstall:

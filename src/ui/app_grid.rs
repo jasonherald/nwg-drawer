@@ -99,16 +99,8 @@ fn build_button(
     app_dirs: &[std::path::PathBuf],
     on_rebuild: Option<&Rc<dyn Fn()>>,
 ) -> gtk4::Button {
-    let name = if !entry.name_loc.is_empty() {
-        &entry.name_loc
-    } else {
-        &entry.name
-    };
-    let desc = if !entry.comment_loc.is_empty() {
-        &entry.comment_loc
-    } else {
-        &entry.comment
-    };
+    let name = widgets::display_name(entry);
+    let desc = widgets::display_desc(entry);
 
     let button = widgets::app_icon_button(
         &entry.icon,
@@ -183,49 +175,13 @@ fn connect_pin(
     gesture.set_button(super::constants::MOUSE_BUTTON_RIGHT);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
-
-        // Phase 1: capture original position (for rollback ordering), mutate
-        // in-memory state under a tight borrow, snapshot, release.
-        let (was_pinned, original_pos, snapshot) = {
-            let mut s = state_ref.borrow_mut();
-            let was_pinned = pinning::is_pinned(&s.pinned, &id);
-            // Only meaningful for the unpin path — re-pinning never needs a
-            // position to restore to.
-            let original_pos = if was_pinned {
-                s.pinned.iter().position(|p| p == &id)
-            } else {
-                None
-            };
-            if was_pinned {
-                pinning::unpin_item(&mut s.pinned, &id);
-            } else {
-                pinning::pin_item(&mut s.pinned, &id);
+        match super::pin_ops::toggle_pin_with_save(&state_ref, &id, &path) {
+            Ok(was_pinned) => {
+                log::info!("{} {}", if was_pinned { "Unpinned" } else { "Pinned" }, id);
+                rebuild();
             }
-            (was_pinned, original_pos, s.pinned.clone())
-        };
-
-        // Phase 2: I/O outside any borrow — a hypothetical re-entrant signal
-        // during save can't deadlock against state.
-        if let Err(e) = pinning::save_pinned(&snapshot, &path) {
-            log::error!("Failed to save pinned state: {}", e);
-            // Rollback in-memory state to stay in sync with disk.
-            let mut s = state_ref.borrow_mut();
-            if was_pinned {
-                // Re-insert at original position so a save failure doesn't
-                // silently reorder the user's pinned row.
-                if let Some(pos) = original_pos {
-                    s.pinned.insert(pos, id.clone());
-                } else {
-                    s.pinned.push(id.clone());
-                }
-            } else {
-                // Item wasn't pinned before; remove what we just appended.
-                pinning::unpin_item(&mut s.pinned, &id);
-            }
-            return;
+            Err(e) => log::error!("Failed to save pinned state: {}", e),
         }
-        log::info!("{} {}", if was_pinned { "Unpinned" } else { "Pinned" }, id);
-        rebuild();
     });
     button.add_controller(gesture);
 }

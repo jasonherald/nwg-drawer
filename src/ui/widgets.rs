@@ -8,7 +8,31 @@
 
 use super::constants;
 use gtk4::prelude::*;
+use nwg_common::desktop::entry::DesktopEntry;
 use nwg_common::desktop::icons;
+
+/// Returns the display name for a desktop entry: the localized
+/// `Name[xx]` if non-empty, else the unlocalized `Name`. Used by the
+/// app-grid and pinned-row button factories so both routes pick the
+/// same string for any given entry.
+pub fn display_name(entry: &DesktopEntry) -> &str {
+    if !entry.name_loc.is_empty() {
+        &entry.name_loc
+    } else {
+        &entry.name
+    }
+}
+
+/// Returns the display description for a desktop entry: the localized
+/// `Comment[xx]` if non-empty, else the unlocalized `Comment`. Same
+/// rationale as [`display_name`].
+pub fn display_desc(entry: &DesktopEntry) -> &str {
+    if !entry.comment_loc.is_empty() {
+        &entry.comment_loc
+    } else {
+        &entry.comment
+    }
+}
 
 /// Creates a GTK4 button with icon above label, matching macOS Launchpad style.
 ///

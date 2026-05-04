@@ -49,7 +49,7 @@ pub fn install_grid_nav(
         let Some(flow_ref) = flow_weak.upgrade() else {
             return gtk4::glib::Propagation::Proceed;
         };
-        let total = count_flow_children(&flow_ref);
+        let total = flow_ref.observe_children().n_items() as i32;
         if total == 0 {
             return gtk4::glib::Propagation::Proceed;
         }
@@ -139,7 +139,7 @@ fn nav_down(
     }
     // No item directly below — try cross-section FlowBox
     if let Some(target) = down_target {
-        let target_total = count_flow_children(target);
+        let target_total = target.observe_children().n_items() as i32;
         if target_total > 0 {
             // Clamp by target grid width so we land in the first row, not a later one
             let target_cols = target
@@ -173,7 +173,7 @@ fn nav_up(
     }
     // Top edge — try cross-section FlowBox
     if let Some(target) = up_target {
-        let target_total = count_flow_children(target);
+        let target_total = target.observe_children().n_items() as i32;
         if target_total > 0 {
             let target_cols = target
                 .max_children_per_line()
@@ -322,16 +322,6 @@ fn focused_position(flow: &gtk4::FlowBox, columns: u32) -> (i32, i32) {
         child = c.next_sibling();
     }
     (0, 0)
-}
-
-fn count_flow_children(flow: &gtk4::FlowBox) -> i32 {
-    let mut n = 0;
-    let mut child = flow.first_child();
-    while let Some(c) = child {
-        n += 1;
-        child = c.next_sibling();
-    }
-    n
 }
 
 /// Removes an event controller by name from a widget.

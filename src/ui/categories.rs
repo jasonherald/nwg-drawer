@@ -119,9 +119,7 @@ pub fn apply_category_filter(ctx: &WellContext, category_ids: &[String]) {
     // on the now-category-filtered well.
     ctx.file_search.invalidate();
 
-    while let Some(child) = ctx.well.first_child() {
-        ctx.well.remove(&child);
-    }
+    ui::well_builder::clear_box(&ctx.well);
 
     let on_rebuild = ui::well_builder::build_rebuild_callback(ctx);
     let flow = ui::app_grid::build_app_flow_box(ctx, Some(category_ids), "", Some(&on_rebuild));

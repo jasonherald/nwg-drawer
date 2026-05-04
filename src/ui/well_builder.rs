@@ -18,7 +18,6 @@ use crate::ui;
 use crate::ui::navigation;
 use crate::ui::well_context::WellContext;
 use gtk4::prelude::*;
-use nwg_common::pinning;
 use std::rc::Rc;
 
 /// Builds the normal (non-search) well content.
@@ -187,16 +186,8 @@ fn build_pinned_button(
     on_rebuild: &Rc<dyn Fn()>,
     desktop_id: &str,
 ) -> gtk4::Button {
-    let name = if !entry.name_loc.is_empty() {
-        &entry.name_loc
-    } else {
-        &entry.name
-    };
-    let desc = if !entry.comment_loc.is_empty() {
-        &entry.comment_loc
-    } else {
-        &entry.comment
-    };
+    let name = crate::ui::widgets::display_name(entry);
+    let desc = crate::ui::widgets::display_desc(entry);
     let button = crate::ui::widgets::app_icon_button(
         &entry.icon,
         name,
@@ -235,33 +226,18 @@ fn build_pinned_button(
     gesture.set_button(super::constants::MOUSE_BUTTON_RIGHT);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
-
-        // Phase 1: capture original position, unpin in-memory under a tight
-        // borrow, snapshot the new pin list, then release the borrow before I/O.
-        let (snapshot, original_pos) = {
-            let mut s = state_ref.borrow_mut();
-            let original_pos = s.pinned.iter().position(|p| p == &id);
-            if !pinning::unpin_item(&mut s.pinned, &id) {
-                return;
+        // The X-button only renders for pinned items, so the toggle
+        // normally lands on the unpin branch. If a concurrent watcher
+        // edit had already unpinned the item, the toggle re-pins it
+        // and we log accordingly — the rebuild immediately re-renders
+        // the actual post-state either way.
+        match super::pin_ops::toggle_pin_with_save(&state_ref, &id, &path) {
+            Ok(was_pinned) => {
+                log::info!("{} {}", if was_pinned { "Unpinned" } else { "Pinned" }, id);
+                rebuild();
             }
-            (s.pinned.clone(), original_pos)
-        };
-
-        // Phase 2: I/O outside any borrow.
-        if let Err(e) = pinning::save_pinned(&snapshot, &path) {
-            log::error!("Failed to save pinned state: {}", e);
-            // Restore the pin at its original position so UI ordering survives
-            // a save failure (push would put it at the end of the row).
-            let mut s = state_ref.borrow_mut();
-            if let Some(pos) = original_pos {
-                s.pinned.insert(pos, id.clone());
-            } else {
-                s.pinned.push(id.clone());
-            }
-            return;
+            Err(e) => log::error!("Failed to save pinned state: {}", e),
         }
-        log::info!("Unpinned {}", id);
-        rebuild();
     });
     button.add_controller(gesture);
 
@@ -289,7 +265,13 @@ pub fn build_rebuild_callback(ctx: &WellContext) -> Rc<dyn Fn()> {
     })
 }
 
-fn clear_box(container: &gtk4::Box) {
+/// Removes every child from `container` in document order.
+///
+/// `gtk4::Box` doesn't provide a one-shot "remove all children" call,
+/// so we walk `first_child` until empty. Used by every well rebuild
+/// path (search, category, normal) and re-exported via `pub(super)`
+/// so other UI modules with a `&gtk4::Box` to clear can reuse it.
+pub(super) fn clear_box(container: &gtk4::Box) {
     while let Some(child) = container.first_child() {
         container.remove(&child);
     }
