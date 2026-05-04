@@ -77,6 +77,15 @@ pub fn setup_keyboard(
     let key_ctrl = gtk4::EventControllerKey::new();
     key_ctrl.set_propagation_phase(gtk4::PropagationPhase::Capture);
     key_ctrl.connect_key_pressed(move |_, keyval, _, _| {
+        // Modifier-only presses (Shift, Ctrl, Alt, Super, …) shouldn't
+        // grab focus — otherwise pressing Shift before a navigation
+        // key (Shift+Tab, Ctrl+Backspace) yanks focus away from the
+        // grid before the modified key arrives. gdk4 0.10 doesn't
+        // expose an `is_modifier` predicate on `Key`, so we match the
+        // specific modifier keysyms.
+        if is_modifier_key(keyval) {
+            return gtk4::glib::Propagation::Proceed;
+        }
         match keyval {
             gtk4::gdk::Key::Escape => {
                 handle_escape(&search_entry, &win, config.resident);
@@ -111,6 +120,32 @@ pub fn setup_keyboard(
         }
     });
     win_ctrl.add_controller(key_ctrl);
+}
+
+/// Returns true if `keyval` is a modifier-only key press (Shift,
+/// Ctrl, Alt, Super, lock keys, AltGr-style shifts).
+fn is_modifier_key(keyval: gtk4::gdk::Key) -> bool {
+    matches!(
+        keyval,
+        gtk4::gdk::Key::Shift_L
+            | gtk4::gdk::Key::Shift_R
+            | gtk4::gdk::Key::Control_L
+            | gtk4::gdk::Key::Control_R
+            | gtk4::gdk::Key::Alt_L
+            | gtk4::gdk::Key::Alt_R
+            | gtk4::gdk::Key::Meta_L
+            | gtk4::gdk::Key::Meta_R
+            | gtk4::gdk::Key::Super_L
+            | gtk4::gdk::Key::Super_R
+            | gtk4::gdk::Key::Hyper_L
+            | gtk4::gdk::Key::Hyper_R
+            | gtk4::gdk::Key::Caps_Lock
+            | gtk4::gdk::Key::Shift_Lock
+            | gtk4::gdk::Key::Num_Lock
+            | gtk4::gdk::Key::Scroll_Lock
+            | gtk4::gdk::Key::ISO_Level3_Shift
+            | gtk4::gdk::Key::ISO_Level5_Shift
+    )
 }
 
 /// Polls compositor active window to close drawer when another window gets focus.

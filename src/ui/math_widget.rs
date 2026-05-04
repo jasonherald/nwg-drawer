@@ -124,12 +124,16 @@ fn append_copy_button(row: &gtk4::Box, vbox: &gtk4::Box, result_copy: String) {
             id.remove();
         }
         copied_ref.set_visible(true);
-        let hide_ref = copied_ref.clone();
+        // WeakRef so the still-pending timer doesn't keep the label
+        // alive after the math result row is rebuilt.
+        let hide_weak = copied_ref.downgrade();
         let timer_reset = std::rc::Rc::clone(&timer_ref);
         let id = gtk4::glib::timeout_add_local_once(
             std::time::Duration::from_secs(constants::COPIED_LABEL_TIMEOUT_SECS),
             move || {
-                hide_ref.set_visible(false);
+                if let Some(label) = hide_weak.upgrade() {
+                    label.set_visible(false);
+                }
                 timer_reset.set(None);
             },
         );

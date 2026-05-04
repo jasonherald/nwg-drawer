@@ -303,10 +303,18 @@ fn setup_click_catcher_backdrops(
         backdrop.present();
         backdrop.set_visible(false);
     }
+    // Capture WeakRefs into the visibility-mirror closure so the
+    // closure doesn't keep the backdrops alive after the GtkApplication
+    // tears them down. Backdrops are owned by the `app` (added via
+    // `create_fullscreen_backdrops`) — letting them go is the app's job.
+    let backdrop_weaks: Vec<gtk4::glib::WeakRef<gtk4::ApplicationWindow>> =
+        backdrops.iter().map(|b| b.downgrade()).collect();
     win.connect_visible_notify(move |w| {
         let visible = w.is_visible();
-        for b in &backdrops {
-            b.set_visible(visible);
+        for weak in &backdrop_weaks {
+            if let Some(b) = weak.upgrade() {
+                b.set_visible(visible);
+            }
         }
     });
 }
