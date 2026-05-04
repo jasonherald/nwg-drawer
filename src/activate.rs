@@ -109,7 +109,7 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
 
     setup_close_button(&main_vbox, &win, &config);
 
-    let search_entry = ui::search::setup_search_entry();
+    let search_entry = ui::widgets::build_search_entry();
     search_entry.add_css_class("drawer-search");
     search_entry.set_hexpand(false);
     search_entry.set_halign(gtk4::Align::Center);
@@ -303,10 +303,18 @@ fn setup_click_catcher_backdrops(
         backdrop.present();
         backdrop.set_visible(false);
     }
+    // Capture WeakRefs into the visibility-mirror closure so the
+    // closure doesn't keep the backdrops alive after the GtkApplication
+    // tears them down. Backdrops are owned by the `app` (added via
+    // `create_fullscreen_backdrops`) — letting them go is the app's job.
+    let backdrop_weaks: Vec<gtk4::glib::WeakRef<gtk4::ApplicationWindow>> =
+        backdrops.iter().map(|b| b.downgrade()).collect();
     win.connect_visible_notify(move |w| {
         let visible = w.is_visible();
-        for b in &backdrops {
-            b.set_visible(visible);
+        for weak in &backdrop_weaks {
+            if let Some(b) = weak.upgrade() {
+                b.set_visible(visible);
+            }
         }
     });
 }

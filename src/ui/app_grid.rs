@@ -4,10 +4,13 @@
 //! filtered by category or search phrase. Each button wires up
 //! left-click to launch and right-click to toggle pin state, plus a
 //! pin-indicator dot when the entry is pinned.
+//!
+//! Owns [`subsequence_match`], the lightweight fuzzy matcher used by
+//! the search-mode filter — kept here because the app grid is the only
+//! consumer (the file-search and math paths use different mechanisms).
 
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
-use crate::ui::search::subsequence_match;
 use crate::ui::well_context::WellContext;
 use crate::ui::widgets;
 use gtk4::prelude::*;
@@ -15,6 +18,29 @@ use nwg_common::desktop::entry::DesktopEntry;
 use nwg_common::pinning;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+/// Subsequence matching: checks if all chars of `needle` appear in
+/// order (but not necessarily contiguously) in `haystack`. Both inputs
+/// are lowercased per call; callers that match against many haystacks
+/// with a fixed needle should pre-lowercase the needle.
+pub(crate) fn subsequence_match(needle: &str, haystack: &str) -> bool {
+    let needle = needle.to_lowercase();
+    let haystack = haystack.to_lowercase();
+
+    let mut needle_chars = needle.chars();
+    let mut current = needle_chars.next();
+
+    for h in haystack.chars() {
+        if let Some(n) = current {
+            if n == h {
+                current = needle_chars.next();
+            }
+        } else {
+            return true;
+        }
+    }
+    current.is_none()
+}
 
 /// Creates the app FlowBox with optional category filter and search.
 ///
@@ -184,4 +210,19 @@ fn connect_pin(
         }
     });
     button.add_controller(gesture);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_subsequence_match() {
+        assert!(subsequence_match("ff", "firefox"));
+        assert!(subsequence_match("frfx", "firefox"));
+        assert!(subsequence_match("firefox", "firefox"));
+        assert!(!subsequence_match("fz", "firefox"));
+        assert!(subsequence_match("", "anything"));
+        assert!(subsequence_match("FI", "firefox")); // case insensitive
+    }
 }

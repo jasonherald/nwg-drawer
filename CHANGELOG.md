@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Capture-phase keyboard handler no longer grabs focus on
+  modifier-only key presses. Pressing Shift before a navigation key
+  (Shift+Tab, Ctrl+Backspace, Super-anything) used to yank focus to
+  the search entry on the modifier-down event, before the modified
+  key arrived — Shift+Tab in particular would land in the search bar
+  instead of moving across the grid.
 - Pin-indicator dots and other recent style additions now render on
   fresh installs. The shipped `data/nwg-drawer/drawer.css` had drifted
   from the embedded `src/assets/drawer.css` — new users got a 40-line

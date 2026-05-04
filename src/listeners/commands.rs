@@ -66,9 +66,10 @@ pub(super) fn handle_window_command(
 ) {
     match resolve_window_op(&cmd, win.is_visible(), resident) {
         WindowOp::Show => {
-            // Clear search/category state so the drawer opens fresh.
-            // Don't rebuild yet — that happens in complete_show after focus.
-            clear_drawer_state(search_entry);
+            // Clear search text so the drawer opens fresh; category
+            // clearing and rebuild are deferred to `complete_show`
+            // after focus is confirmed.
+            search_entry.set_text("");
             focus_pending.set(true);
             win.set_visible(true);
             // Fallback: if is_active_notify doesn't fire in time
@@ -98,12 +99,6 @@ pub(super) fn handle_window_command(
             super::quit_or_hide(win, false);
         }
     }
-}
-
-/// Clears search text before showing. Category clearing and rebuild are
-/// deferred to `complete_show` after focus is confirmed.
-fn clear_drawer_state(search_entry: &gtk4::SearchEntry) {
-    search_entry.set_text("");
 }
 
 #[cfg(test)]

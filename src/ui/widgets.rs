@@ -34,6 +34,14 @@ pub fn display_desc(entry: &DesktopEntry) -> &str {
     }
 }
 
+/// Creates and configures the search entry widget at the top of the
+/// drawer. Style + sizing live in CSS / Rust margins on the call site.
+pub fn build_search_entry() -> gtk4::SearchEntry {
+    let entry = gtk4::SearchEntry::new();
+    entry.set_placeholder_text(Some("Type to search"));
+    entry
+}
+
 /// Creates a GTK4 button with icon above label, matching macOS Launchpad style.
 ///
 /// Shared between the app-grid and pinned-flow builders to eliminate duplication.

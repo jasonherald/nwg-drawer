@@ -10,8 +10,6 @@ use crate::ui;
 use crate::ui::well_context::WellContext;
 use gtk4::prelude::*;
 use nwg_common::desktop::categories::default_categories;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// Builds the category filter button bar.
 pub fn build_category_bar(ctx: &WellContext) -> gtk4::Box {
@@ -24,8 +22,6 @@ pub fn build_category_bar(ctx: &WellContext) -> gtk4::Box {
     hbox.set_margin_top(super::constants::CATEGORY_BAR_TOP_MARGIN);
     hbox.set_margin_bottom(super::constants::CATEGORY_BAR_BOTTOM_MARGIN);
 
-    let buttons: Rc<RefCell<Vec<gtk4::Button>>> = Rc::new(RefCell::new(Vec::new()));
-
     // "All" button — restores full view
     let all_btn = gtk4::Button::with_label("All");
     all_btn.add_css_class("category-button");
@@ -34,9 +30,8 @@ pub fn build_category_bar(ctx: &WellContext) -> gtk4::Box {
 
     {
         let ctx = ctx.clone();
-        let buttons = Rc::clone(&buttons);
         all_btn.connect_clicked(move |btn| {
-            select_button(btn, &buttons);
+            select_button(btn);
             ctx.search_entry.set_text("");
             // Coalesce mutations into one scope; drop before the rebuild call so
             // build_normal_well's first borrow can't deadlock against ours.
@@ -50,7 +45,6 @@ pub fn build_category_bar(ctx: &WellContext) -> gtk4::Box {
         });
     }
     hbox.append(&all_btn);
-    buttons.borrow_mut().push(all_btn);
 
     // Category buttons
     let categories = default_categories();
@@ -65,9 +59,8 @@ pub fn build_category_bar(ctx: &WellContext) -> gtk4::Box {
             _ => continue,
         };
 
-        let btn = create_category_button(&cat.display_name, &cat.icon, ids, ctx, &buttons);
+        let btn = create_category_button(&cat.display_name, &cat.icon, ids, ctx);
         hbox.append(&btn);
-        buttons.borrow_mut().push(btn);
     }
 
     hbox
@@ -79,7 +72,6 @@ fn create_category_button(
     icon_name: &str,
     ids: Vec<String>,
     ctx: &WellContext,
-    buttons: &Rc<RefCell<Vec<gtk4::Button>>>,
 ) -> gtk4::Button {
     let btn = gtk4::Button::new();
     let btn_box = gtk4::Box::new(
@@ -95,9 +87,8 @@ fn create_category_button(
     btn.set_widget_name("category-button");
 
     let ctx = ctx.clone();
-    let buttons = Rc::clone(buttons);
     btn.connect_clicked(move |btn| {
-        select_button(btn, &buttons);
+        select_button(btn);
         ctx.search_entry.set_text("");
         // Coalesce mutations into one scope; drop before apply_category_filter
         // re-borrows.
@@ -141,9 +132,18 @@ pub fn apply_category_filter(ctx: &WellContext, category_ids: &[String]) {
 }
 
 /// Updates CSS classes so only the clicked button has "category-selected".
-fn select_button(active: &gtk4::Button, buttons: &Rc<RefCell<Vec<gtk4::Button>>>) {
-    for btn in buttons.borrow().iter() {
-        btn.remove_css_class("category-selected");
+///
+/// Walks the button's parent (the category-bar `Box`) directly rather
+/// than holding a separate `Rc<RefCell<Vec<Button>>>` — the widget tree
+/// already knows the sibling set, so the auxiliary collection is dead
+/// weight.
+fn select_button(active: &gtk4::Button) {
+    if let Some(bar) = active.parent() {
+        let mut child = bar.first_child();
+        while let Some(c) = child {
+            c.remove_css_class("category-selected");
+            child = c.next_sibling();
+        }
     }
     active.add_css_class("category-selected");
 }

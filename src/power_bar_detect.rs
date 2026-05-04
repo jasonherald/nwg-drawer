@@ -62,16 +62,14 @@ fn detect_command(slot: &mut String, label: &str, candidates: &[&str]) {
 }
 
 /// Checks if a command exists on PATH.
+///
+/// Uses `std::env::split_paths` so empty segments (`PATH="…::…"`) and
+/// non-UTF-8 path entries are handled losslessly per platform conventions.
 fn command_on_path(cmd: &str) -> bool {
-    if let Ok(path) = std::env::var("PATH") {
-        for dir in path.split(':') {
-            let full = std::path::Path::new(dir).join(cmd);
-            if full.is_file() {
-                return true;
-            }
-        }
-    }
-    false
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path).any(|dir| dir.join(cmd).is_file())
 }
 
 /// Checks if the system supports suspend via systemctl.
