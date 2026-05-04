@@ -20,7 +20,6 @@ pub(crate) mod math_widget;
 pub(crate) mod navigation;
 pub(crate) mod pin_ops;
 pub(crate) mod power_bar;
-pub(crate) mod search;
 pub(crate) mod search_handler;
 pub(crate) mod well_builder;
 pub(crate) mod well_context;

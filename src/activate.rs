@@ -109,7 +109,7 @@ pub(crate) fn activate_drawer(app: &gtk4::Application, init: &DrawerInit) {
 
     setup_close_button(&main_vbox, &win, &config);
 
-    let search_entry = ui::search::setup_search_entry();
+    let search_entry = ui::widgets::build_search_entry();
     search_entry.add_css_class("drawer-search");
     search_entry.set_hexpand(false);
     search_entry.set_halign(gtk4::Align::Center);
