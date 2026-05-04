@@ -1,3 +1,21 @@
+//! Long-running glib main-loop listeners attached at activate time.
+//!
+//! Four independent loops cooperate to keep the drawer in sync with
+//! its environment:
+//! - **Active-window poller** — closes the drawer when another window
+//!   takes focus (compositors that don't surface focus events).
+//! - **File-system watcher consumer** — reacts to `.desktop` and
+//!   pin-cache changes (inotify via [`crate::watcher`]).
+//! - **CSS hot-reload** — re-applies `~/.config/nwg-drawer/drawer.css`.
+//! - **Window-command receiver** — bridges the `mpsc` signal channel
+//!   from `nwg_common::signals` into a glib-friendly `async_channel`,
+//!   so resident-mode SIGUSR1 toggles arrive on the main loop.
+//!
+//! The `focus_pending` `Cell<bool>` is the handshake between the
+//! activate-time wiring and the focus poller: the poller skips one
+//! tick after a fresh open so the just-shown drawer doesn't see the
+//! launching app's pre-show focus and immediately close itself.
+
 mod commands;
 
 use crate::config::DrawerConfig;
@@ -10,6 +28,13 @@ use nwg_common::pinning;
 use nwg_common::signals::WindowCommand;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+
+/// Cadence for the compositor active-window poll. Drives focus-loss
+/// detection — when the active window changes away from the drawer,
+/// the focus detector closes the drawer. Lower values reduce close-
+/// latency at the cost of more compositor IPC; 300 ms is the
+/// pre-existing tuning point inherited from the Go upstream.
+const ACTIVE_WINDOW_POLL_MS: u64 = 300;
 
 /// Sets up keyboard handler for the drawer window.
 ///
@@ -133,14 +158,17 @@ pub fn setup_focus_detector(
     let compositor = Rc::clone(compositor);
     let baseline: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
 
-    glib::timeout_add_local(std::time::Duration::from_millis(300), move || {
-        if !win.is_visible() {
-            *baseline.borrow_mut() = None;
-            return glib::ControlFlow::Continue;
-        }
-        poll_active_window(&compositor, &baseline, &on_launch);
-        glib::ControlFlow::Continue
-    });
+    glib::timeout_add_local(
+        std::time::Duration::from_millis(ACTIVE_WINDOW_POLL_MS),
+        move || {
+            if !win.is_visible() {
+                *baseline.borrow_mut() = None;
+                return glib::ControlFlow::Continue;
+            }
+            poll_active_window(&compositor, &baseline, &on_launch);
+            glib::ControlFlow::Continue
+        },
+    );
 }
 
 /// Sets up inotify-based file watcher for pin and desktop file changes.

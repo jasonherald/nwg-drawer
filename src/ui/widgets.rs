@@ -1,3 +1,11 @@
+//! Small, reusable widget factories shared across builders.
+//!
+//! `app_icon_button` is the canonical "icon over label" launcher
+//! button used by both the app grid and the pinned row, so the two
+//! always share styling and hover/focus behavior. `apply_pin_badge`
+//! adds the small overlay dot for pinned items, and `truncate`
+//! shortens long names/tooltips at grapheme boundaries.
+
 use super::constants;
 use gtk4::prelude::*;
 use nwg_common::desktop::icons;
@@ -19,7 +27,10 @@ pub fn app_icon_button(
     button.set_has_frame(false);
     button.add_css_class("app-button");
 
-    let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+    let vbox = gtk4::Box::new(
+        gtk4::Orientation::Vertical,
+        constants::APP_BUTTON_VBOX_SPACING,
+    );
     vbox.set_halign(gtk4::Align::Center);
 
     // Icon — try theme/file, fall back to generic "application-x-executable"

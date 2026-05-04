@@ -1,3 +1,13 @@
+//! Inotify-backed watcher for `.desktop` directories and the pin cache.
+//!
+//! Spawns a background thread that owns a `notify::Watcher` and ships
+//! `WatchEvent` values into an `async_channel`, so the consumer in
+//! [`crate::listeners`] can `.recv().await` on the glib main loop.
+//!
+//! The channel is unbounded because file-system events are bursty
+//! (a package install can fire dozens of CREATE/MODIFY events back to
+//! back); the consumer coalesces bursts before triggering the rebuild.
+
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -88,10 +98,13 @@ fn classify_watch_event(event: &Event, pin_path: &PathBuf) -> Option<WatchEvent>
     match event.kind {
         EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_) => {
             let is_pin = event.paths.iter().any(|p| p == pin_path);
-            let is_desktop = event
-                .paths
-                .iter()
-                .any(|p| p.extension().is_some_and(|ext| ext == "desktop"));
+            // Case-insensitive: some systems / build steps emit
+            // `.DESKTOP`. ASCII-only is fine — the `.desktop`
+            // extension is an ASCII-only freedesktop convention.
+            let is_desktop = event.paths.iter().any(|p| {
+                p.extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("desktop"))
+            });
 
             if is_pin {
                 Some(WatchEvent::PinnedChanged)

@@ -1,3 +1,11 @@
+//! Category filter button bar.
+//!
+//! Builds the row of toggle-style buttons that filter the app grid by
+//! freedesktop main-category. The "All" button restores the unfiltered
+//! view. Selection state lives on the buttons themselves (CSS class)
+//! plus the `active_category` field of [`crate::state::DrawerState`]
+//! so it survives rebuilds.
+
 use crate::ui;
 use crate::ui::well_context::WellContext;
 use gtk4::prelude::*;
@@ -7,7 +15,10 @@ use std::rc::Rc;
 
 /// Builds the category filter button bar.
 pub fn build_category_bar(ctx: &WellContext) -> gtk4::Box {
-    let hbox = gtk4::Box::new(gtk4::Orientation::Horizontal, 4);
+    let hbox = gtk4::Box::new(
+        gtk4::Orientation::Horizontal,
+        super::constants::CATEGORY_BAR_SPACING,
+    );
     hbox.add_css_class("category-bar");
     hbox.set_halign(gtk4::Align::Center);
     hbox.set_margin_top(super::constants::CATEGORY_BAR_TOP_MARGIN);
@@ -71,9 +82,12 @@ fn create_category_button(
     buttons: &Rc<RefCell<Vec<gtk4::Button>>>,
 ) -> gtk4::Button {
     let btn = gtk4::Button::new();
-    let btn_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 4);
+    let btn_box = gtk4::Box::new(
+        gtk4::Orientation::Horizontal,
+        super::constants::CATEGORY_BUTTON_INNER_SPACING,
+    );
     let icon = gtk4::Image::from_icon_name(icon_name);
-    icon.set_pixel_size(16);
+    icon.set_pixel_size(super::constants::CATEGORY_ICON_SIZE);
     btn_box.append(&icon);
     btn_box.append(&gtk4::Label::new(Some(display_name)));
     btn.set_child(Some(&btn_box));

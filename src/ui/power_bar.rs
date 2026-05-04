@@ -1,3 +1,11 @@
+//! Optional power-button bar (lock / exit / reboot / sleep / poweroff).
+//!
+//! Built only when the user supplies the relevant `--pb*` commands or
+//! enables `--pb-auto`. Icons resolve in two passes: theme-icon by
+//! freedesktop name first, then falling back to the bundled SVGs in
+//! `assets/`. Auto-detection of the actual commands lives in
+//! [`crate::power_bar_detect`].
+
 use crate::config::DrawerConfig;
 use gtk4::prelude::*;
 use nwg_common::desktop::icons;

@@ -1,3 +1,23 @@
+//! Shared mutable state for the drawer.
+//!
+//! [`DrawerState`] is held as `Rc<RefCell<…>>` and threaded through
+//! every UI builder and event closure via [`crate::ui::well_context`].
+//!
+//! ## RefCell discipline
+//!
+//! Mutating callbacks (search, pin/unpin, file-search consumer) follow
+//! a tight pattern: take `borrow_mut`, snapshot what's needed, drop the
+//! borrow before any I/O, GTK rebuild, or callback dispatch. This
+//! avoids "already borrowed" panics from re-entrant signals while a
+//! `borrow_mut` is live.
+//!
+//! ## `active_search` precedence
+//!
+//! When `active_search` is non-empty, the well shows search results
+//! and the category bar's selected category is *visually* preserved
+//! but does not filter. Builders consult both fields; see
+//! [`crate::ui::well_builder`] for the rebuild matrix.
+
 use crate::xdg_dirs::{self, XdgDirBucket};
 use nwg_common::compositor::Compositor;
 use nwg_common::desktop::entry::DesktopEntry;
@@ -80,6 +100,14 @@ pub struct DrawerState {
 }
 
 impl DrawerState {
+    /// Construct a fresh state.
+    ///
+    /// `compositor` is stored as the same `Rc<dyn Compositor>` passed
+    /// in by `main`, which also keeps a clone for the launch path
+    /// (`launch_desktop_entry` → compositor IPC). Sharing the instance
+    /// avoids reopening the Hyprland/Sway socket per click and keeps
+    /// the null-fallback decision (`init_or_null`) made once at
+    /// startup applied uniformly to everything that talks to the WM.
     pub fn new(app_dirs: Vec<PathBuf>, compositor: Rc<dyn Compositor>) -> Self {
         Self {
             apps: AppRegistry::new(),

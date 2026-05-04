@@ -1,3 +1,13 @@
+//! [`WellContext`] — the parameter bundle threaded through every
+//! well/category/search builder.
+//!
+//! Plain `Clone` (each field is `Rc`-cheap) so builders can take
+//! `&WellContext` and the few that need to capture into a closure
+//! can `.clone()` without ceremony. Adding a new field here is the
+//! preferred way to thread new state into builders — the convention
+//! is documented in `CLAUDE.md` ("Expanding a builder signature is a
+//! smell; add a field to the context instead.").
+
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
 use crate::ui::file_search::FileSearchDispatcher;

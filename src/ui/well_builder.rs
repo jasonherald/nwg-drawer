@@ -1,3 +1,19 @@
+//! Well rebuild orchestration.
+//!
+//! The "well" is the central scrollable region of the drawer. It
+//! reflects three modes that compose with each other:
+//!
+//! | `active_search` | category filter | well contents                       |
+//! |-----------------|-----------------|-------------------------------------|
+//! | empty           | `None`          | pinned row + full app grid          |
+//! | empty           | `Some(cat)`     | pinned row + category-filtered grid |
+//! | non-empty       | (ignored)       | math (if any) + apps + file results |
+//!
+//! Builders here are the only place that clears and re-populates the
+//! well's `Box`; all other UI code reads but never writes to the
+//! children. Search-mode rebuilds also drive the file-search
+//! dispatcher via [`crate::ui::file_search`].
+
 use crate::ui;
 use crate::ui::navigation;
 use crate::ui::well_context::WellContext;
@@ -216,7 +232,7 @@ fn build_pinned_button(
     let path = Rc::clone(&ctx.pinned_file);
     let rebuild = Rc::clone(on_rebuild);
     let gesture = gtk4::GestureClick::new();
-    gesture.set_button(3);
+    gesture.set_button(super::constants::MOUSE_BUTTON_RIGHT);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
 
@@ -272,15 +288,6 @@ pub fn build_rebuild_callback(ctx: &WellContext) -> Rc<dyn Fn()> {
         });
     })
 }
-
-// ---------------------------------------------------------------------------
-// Grid navigation — capture-phase controller that handles all arrow keys.
-//
-// GTK4's FlowBox internal `move_cursor` keybinding is unreliable with
-// SelectionMode::None and non-focusable FlowBoxChildren (it consumes events
-// without actually moving focus). We bypass it entirely by intercepting
-// arrow keys in the Capture phase — before the FlowBox sees them.
-// ---------------------------------------------------------------------------
 
 fn clear_box(container: &gtk4::Box) {
     while let Some(child) = container.first_child() {

@@ -1,3 +1,24 @@
+//! Capture-phase keyboard navigation across the drawer's FlowBox grids.
+//!
+//! GTK4's `FlowBox` exposes a `move_cursor` keybinding that's unreliable
+//! with `SelectionMode::None` and non-focusable `FlowBoxChild` wrappers
+//! — it consumes arrow keys without actually moving focus. We bypass
+//! the binding entirely by attaching a key controller in the **capture**
+//! phase (before the FlowBox sees the event) so we control which keys
+//! propagate.
+//!
+//! The controller is intentionally narrow: it consumes only the four
+//! arrow keys (Up / Down / Left / Right). Enter/Escape, printable
+//! characters, and everything else fall through to the search entry
+//! and the focused button — which is what enables type-to-search
+//! from anywhere in the drawer and lets the focused button activate
+//! on Enter via GTK's default handling.
+//!
+//! Up/Down at a grid edge can jump to an adjacent FlowBox via the
+//! `up_target` / `down_target` parameters — this is how arrow keys
+//! cross between the app grid, pinned row, and category bar without
+//! the user having to Tab between them.
+
 use gtk4::prelude::*;
 
 /// Installs a capture-phase key controller on a FlowBox that handles
@@ -166,11 +187,12 @@ fn nav_up(
         }
         // Target exists but is empty — fall through to widget search
     }
-    // No FlowBox target — focus nearest widget above (categories, search)
-    if focus_prev_sibling(flow) {
-        return gtk4::glib::Propagation::Stop;
-    }
-    gtk4::glib::Propagation::Proceed
+    // No FlowBox target — focus nearest widget above (categories, search).
+    // We `Stop` even when no sibling takes focus so FlowBox's broken
+    // default `move_cursor` binding doesn't get the key back and silently
+    // swallow it (this mirrors the symmetric Down path).
+    focus_prev_sibling(flow);
+    gtk4::glib::Propagation::Stop
 }
 
 /// Walks up the widget tree from `start`, looking for the nearest visible

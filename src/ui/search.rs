@@ -1,3 +1,11 @@
+//! Search-entry widget factory and the subsequence matcher.
+//!
+//! `subsequence_match` is the lightweight fuzzy matcher used by the
+//! app-grid filter — it returns true when every char of the needle
+//! appears in order (but not necessarily contiguously) in the
+//! haystack. Both inputs are lowercased per call; callers that match
+//! against many haystacks should pre-lowercase the needle.
+
 /// Creates and configures the search entry widget.
 pub fn setup_search_entry() -> gtk4::SearchEntry {
     let entry = gtk4::SearchEntry::new();

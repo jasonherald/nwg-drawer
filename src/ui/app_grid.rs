@@ -1,3 +1,10 @@
+//! App-grid `FlowBox` builder.
+//!
+//! Builds the main scrollable grid of application buttons, optionally
+//! filtered by category or search phrase. Each button wires up
+//! left-click to launch and right-click to toggle pin state, plus a
+//! pin-indicator dot when the entry is pinned.
+
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
 use crate::ui::search::subsequence_match;
@@ -124,7 +131,7 @@ fn build_button(
         widgets::apply_pin_badge(&button);
     }
 
-    let tooltip = widgets::truncate(desc, 120);
+    let tooltip = widgets::truncate(desc, super::constants::APP_TOOLTIP_MAX_CHARS);
     if !tooltip.is_empty() {
         button.set_tooltip_text(Some(&tooltip));
     }
@@ -173,7 +180,7 @@ fn connect_pin(
     let path = Rc::clone(pinned_file);
     let rebuild = Rc::clone(rebuild);
     let gesture = gtk4::GestureClick::new();
-    gesture.set_button(3);
+    gesture.set_button(super::constants::MOUSE_BUTTON_RIGHT);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
 

@@ -1,3 +1,21 @@
+//! Async file-system search dispatcher.
+//!
+//! Walks the user's XDG directories on a worker thread, debounced and
+//! generation-counted so stale results from earlier keystrokes are
+//! discarded. Lives behind a single [`FileSearchDispatcher`] instance
+//! owned by [`crate::ui::well_context::WellContext`].
+//!
+//! Pipeline:
+//! 1. `dispatch(phrase)` increments the generation counter and resets
+//!    the debounce timeout.
+//! 2. After `FILE_SEARCH_DEBOUNCE_MS` of quiet, the timeout fires,
+//!    clears its slot, and spawns an OS thread.
+//! 3. The thread walks the XDG roots and ships `(generation, rows)`
+//!    back via an `async_channel`.
+//! 4. A consumer future on the GTK main loop drops results whose
+//!    generation has been superseded; surviving results are appended
+//!    to the well by the search-mode builder.
+
 use super::constants;
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
@@ -223,7 +241,10 @@ pub fn build_results_widget(
     preferred_apps: &HashMap<String, String>,
     on_launch: &Rc<dyn Fn()>,
 ) -> gtk4::Box {
-    let container = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
+    let container = gtk4::Box::new(
+        gtk4::Orientation::Vertical,
+        constants::FILE_RESULTS_VBOX_SPACING,
+    );
 
     if !rows.is_empty() {
         let header = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
@@ -243,7 +264,7 @@ pub fn build_results_widget(
         container.append(&header);
 
         let sep = gtk4::Separator::new(gtk4::Orientation::Horizontal);
-        sep.set_margin_bottom(2);
+        sep.set_margin_bottom(constants::FILE_HEADER_SEPARATOR_BOTTOM_MARGIN);
         container.append(&sep);
     }
 
@@ -349,7 +370,10 @@ fn file_result_row(
     button.add_css_class("file-result-row");
     button.set_has_frame(false);
 
-    let hbox = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
+    let hbox = gtk4::Box::new(
+        gtk4::Orientation::Horizontal,
+        constants::FILE_RESULT_ROW_SPACING,
+    );
 
     // Icon — system theme based on file type
     let icon_name = if is_dir {
