@@ -226,14 +226,14 @@ fn build_pinned_button(
     gesture.set_button(super::constants::MOUSE_BUTTON_RIGHT);
     gesture.connect_released(move |gesture, _, _, _| {
         gesture.set_state(gtk4::EventSequenceState::Claimed);
-        // The X-button only renders for pinned items, so toggle here
-        // always unpins. If a concurrent watcher edit had already
-        // unpinned the item, the toggle would re-pin it — but the
-        // rebuild that follows immediately re-renders the correct
-        // post-state, so the user only sees a clean view either way.
+        // The X-button only renders for pinned items, so the toggle
+        // normally lands on the unpin branch. If a concurrent watcher
+        // edit had already unpinned the item, the toggle re-pins it
+        // and we log accordingly — the rebuild immediately re-renders
+        // the actual post-state either way.
         match super::pin_ops::toggle_pin_with_save(&state_ref, &id, &path) {
-            Ok(_) => {
-                log::info!("Unpinned {}", id);
+            Ok(was_pinned) => {
+                log::info!("{} {}", if was_pinned { "Unpinned" } else { "Pinned" }, id);
                 rebuild();
             }
             Err(e) => log::error!("Failed to save pinned state: {}", e),
