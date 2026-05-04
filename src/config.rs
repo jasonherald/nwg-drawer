@@ -10,7 +10,8 @@
 use clap::{Parser, ValueEnum};
 
 /// Known Go-style single-dash flags for the drawer binary.
-/// Single-character flags (-s, -o, -g, -i, -c, -r, -d, -k, -v) work natively.
+/// Single-character flags (-s, -o, -g, -i, -c, -r, -d, -k) work natively
+/// via clap's `short = '…'` attributes on the matching fields below.
 const LEGACY_FLAGS: &[&str] = &[
     "is",
     "ovl",
@@ -387,5 +388,37 @@ mod tests {
     fn pin_indicator_default_off() {
         let config = DrawerConfig::parse_from(["nwg-drawer"]);
         assert!(!config.pin_indicator);
+    }
+
+    #[test]
+    fn closebtn_native_long_form() {
+        let config = DrawerConfig::parse_from(["nwg-drawer", "--closebtn", "left"]);
+        assert_eq!(config.closebtn, CloseButton::Left);
+        let config = DrawerConfig::parse_from(["nwg-drawer", "--closebtn", "right"]);
+        assert_eq!(config.closebtn, CloseButton::Right);
+        let config = DrawerConfig::parse_from(["nwg-drawer", "--closebtn", "none"]);
+        assert_eq!(config.closebtn, CloseButton::None);
+    }
+
+    #[test]
+    fn closebtn_legacy_single_dash() {
+        let config = DrawerConfig::parse_from(normalize_legacy_flags(
+            vec!["nwg-drawer", "-closebtn", "left"]
+                .into_iter()
+                .map(String::from),
+        ));
+        assert_eq!(config.closebtn, CloseButton::Left);
+        let config = DrawerConfig::parse_from(normalize_legacy_flags(
+            vec!["nwg-drawer", "-closebtn", "right"]
+                .into_iter()
+                .map(String::from),
+        ));
+        assert_eq!(config.closebtn, CloseButton::Right);
+    }
+
+    #[test]
+    fn closebtn_default_none() {
+        let config = DrawerConfig::parse_from(["nwg-drawer"]);
+        assert_eq!(config.closebtn, CloseButton::None);
     }
 }

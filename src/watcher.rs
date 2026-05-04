@@ -98,10 +98,13 @@ fn classify_watch_event(event: &Event, pin_path: &PathBuf) -> Option<WatchEvent>
     match event.kind {
         EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_) => {
             let is_pin = event.paths.iter().any(|p| p == pin_path);
-            let is_desktop = event
-                .paths
-                .iter()
-                .any(|p| p.extension().is_some_and(|ext| ext == "desktop"));
+            // Case-insensitive: some systems / build steps emit
+            // `.DESKTOP`. ASCII-only is fine — the `.desktop`
+            // extension is an ASCII-only freedesktop convention.
+            let is_desktop = event.paths.iter().any(|p| {
+                p.extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("desktop"))
+            });
 
             if is_pin {
                 Some(WatchEvent::PinnedChanged)

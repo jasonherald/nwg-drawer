@@ -10,6 +10,26 @@
 
 use exmex::{BinOp, Express, FlatEx, FloatOpsFactory, MakeOperators, Operator};
 
+/// Snap-to-zero threshold for `format_result`. Values whose magnitude
+/// is below this render as `"0"` so FP noise (e.g. `sin(pi) ≈ 1.2e-16`)
+/// doesn't show as `1.2e-16`. Half of the `{:.6}` precision floor, so
+/// any value that would round to `0.000000` at 6 decimals is caught.
+const SNAP_TO_ZERO_EPS: f64 = 0.5e-6;
+
+/// Largest magnitude that still renders as a plain integer. `i64::MAX`
+/// is ~9.22e18, so 1e15 leaves enough headroom that any whole `f64`
+/// under this threshold round-trips through `as i64` without
+/// saturating, while still covering "practical" calculator results.
+/// Anything bigger gets scientific notation.
+const INTEGER_RENDER_MAX_ABS: f64 = 1e15;
+
+/// Lower bound for using scientific notation on small magnitudes.
+/// Below this, `{:.6}` runs out of significant digits — `0.00001`
+/// would render as `0.000010` and lose precision on further trimming —
+/// so we hand it off to scientific. Above `1e-4`, `{:.6}` keeps four+
+/// significant figures.
+const SCI_NOTATION_MIN_ABS: f64 = 1e-4;
+
 /// Result of attempting to evaluate a math expression.
 #[derive(Debug)]
 pub enum MathResult {
@@ -105,26 +125,17 @@ pub fn eval_expression(expr: &str) -> MathResult {
 /// values inside the i64-safe range, scientific notation for very
 /// large or very small magnitudes, and trimmed decimal otherwise.
 pub(super) fn format_result(value: f64) -> String {
-    // Snap to zero at display precision (6 decimal places) so
-    // expressions like sin(pi) show "0" instead of "1.2e-16"
-    if value.abs() < 0.5e-6 {
+    // Snap to zero at display precision so expressions like sin(pi)
+    // show "0" instead of "1.2e-16".
+    if value.abs() < SNAP_TO_ZERO_EPS {
         return "0".to_string();
     }
-    // Show integers without decimal point — but only inside the
-    // i64-safe range. `1e15` is below `i64::MAX` (~9.22e18) by enough
-    // headroom that any whole `f64` under 1e15 round-trips through
-    // `as i64` without saturation, while still covering "practical"
-    // calculator results comfortably. Anything bigger gets scientific
-    // notation rather than risking a saturated integer cast.
-    if value == value.floor() && value.abs() < 1e15 {
+    if value == value.floor() && value.abs() < INTEGER_RENDER_MAX_ABS {
         format!("{}", value as i64)
-    } else if value.abs() >= 1e15 || (value != 0.0 && value.abs() < 1e-4) {
+    } else if value.abs() >= INTEGER_RENDER_MAX_ABS
+        || (value != 0.0 && value.abs() < SCI_NOTATION_MIN_ABS)
+    {
         // Scientific notation for very large or very small numbers.
-        // The `1e-4` lower bound is the breakpoint where `{:.6}` runs
-        // out of significant digits — `0.00001` would render as
-        // `0.000010` and lose precision on further trimming, so we
-        // hand small magnitudes off to scientific instead. Above
-        // `1e-4`, `{:.6}` keeps four+ significant figures.
         // Only trim zeros from the mantissa, not the exponent.
         let scientific = format!("{:.6e}", value);
         if let Some((mantissa, exponent)) = scientific.split_once('e') {

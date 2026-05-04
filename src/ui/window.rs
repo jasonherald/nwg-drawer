@@ -8,6 +8,12 @@
 use crate::config::DrawerConfig;
 use gtk4_layer_shell::LayerShell;
 
+/// `wlr-layer-shell` sentinel meaning "ignore this surface for
+/// exclusive-zone purposes" — the drawer overlay must not push other
+/// windows around. `0` would mean "no exclusive zone but still
+/// participate," which is wrong for a transient launcher overlay.
+const EXCLUSIVE_ZONE_OVERLAY: i32 = -1;
+
 /// Configures the drawer as a full-screen layer-shell overlay.
 pub fn setup_drawer_window(
     win: &gtk4::ApplicationWindow,
@@ -30,7 +36,7 @@ pub fn setup_drawer_window(
     // Layer
     if config.overlay {
         win.set_layer(gtk4_layer_shell::Layer::Overlay);
-        win.set_exclusive_zone(-1);
+        win.set_exclusive_zone(EXCLUSIVE_ZONE_OVERLAY);
     } else {
         win.set_layer(gtk4_layer_shell::Layer::Top);
     }

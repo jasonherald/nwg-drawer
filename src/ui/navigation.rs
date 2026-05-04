@@ -7,10 +7,12 @@
 //! phase (before the FlowBox sees the event) so we control which keys
 //! propagate.
 //!
-//! The controller is intentionally narrow: it consumes only Up / Down /
-//! Left / Right / Home / End / Enter / Escape. Printable characters and
-//! everything else fall through to the search entry, which is what
-//! enables type-to-search from anywhere in the drawer.
+//! The controller is intentionally narrow: it consumes only the four
+//! arrow keys (Up / Down / Left / Right). Enter/Escape, printable
+//! characters, and everything else fall through to the search entry
+//! and the focused button — which is what enables type-to-search
+//! from anywhere in the drawer and lets the focused button activate
+//! on Enter via GTK's default handling.
 //!
 //! Up/Down at a grid edge can jump to an adjacent FlowBox via the
 //! `up_target` / `down_target` parameters — this is how arrow keys
