@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-04
+
+This release improves responsiveness in file-search, pin-toggle, and signal/inotify update paths, and fixes keyboard capture behavior so modifier-only keypresses no longer steal focus.
+
 ### Changed
 
 - Hardened category, search, and pin-toggle callbacks against re-entrant
