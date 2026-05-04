@@ -23,6 +23,31 @@ use std::rc::Rc;
 /// order (but not necessarily contiguously) in `haystack`. Both inputs
 /// are lowercased per call; callers that match against many haystacks
 /// with a fixed needle should pre-lowercase the needle.
+///
+/// Used by the search-mode app filter — `"ff"` matches `"firefox"`,
+/// `"frfx"` does too, but `"fz"` does not.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// // Subsequence — chars in order, gaps allowed:
+/// assert!(subsequence_match("ff", "firefox"));
+/// assert!(subsequence_match("frfx", "firefox"));
+///
+/// // Case-insensitive (both sides lowercased internally):
+/// assert!(subsequence_match("FI", "firefox"));
+///
+/// // Out-of-order or missing chars don't match:
+/// assert!(!subsequence_match("xf", "firefox"));
+/// assert!(!subsequence_match("fz", "firefox"));
+///
+/// // Empty needle matches anything:
+/// assert!(subsequence_match("", "firefox"));
+/// ```
+///
+/// (Doctests aren't compiled — this is a binary-only crate. The
+/// runtime regression suite in `#[cfg(test)] mod tests` covers the
+/// same cases.)
 pub(crate) fn subsequence_match(needle: &str, haystack: &str) -> bool {
     let needle = needle.to_lowercase();
     let haystack = haystack.to_lowercase();

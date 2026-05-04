@@ -161,7 +161,35 @@ pub fn apply_pin_badge(button: &gtk4::Button) {
     vbox.append(&hbox);
 }
 
-/// Truncates a string to max chars, appending ellipsis if needed.
+/// Truncates a string to `max` *characters*, appending an ellipsis
+/// (`…`) if truncation occurred. The ellipsis itself counts toward
+/// `max`, so the returned string never exceeds `max` chars.
+///
+/// Counts are **char-based**, not byte-based: a `max` of 5 returns 5
+/// graphemes-ish even for multi-byte input like CJK or emoji. This is
+/// the gotcha — if you want byte-based truncation (e.g. for fixed-width
+/// buffers), use `s.bytes().take(n)` and re-validate UTF-8 instead.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// // Short input — passes through unchanged:
+/// assert_eq!(truncate("Hi", 20), "Hi");
+///
+/// // Long ASCII — last char becomes the ellipsis (max counts the `…`):
+/// assert_eq!(truncate("Application", 5), "Appl…");
+///
+/// // CJK input — char-based, not byte-based:
+/// // 日本語 is 3 chars but 9 bytes. With max=2 we keep 1 char + ellipsis,
+/// // not 2 bytes' worth.
+/// let result = truncate("日本語", 2);
+/// assert_eq!(result.chars().count(), 2);
+/// assert!(result.ends_with('…'));
+/// ```
+///
+/// (Doctests aren't compiled — this is a binary-only crate. The
+/// runtime regression suite in `#[cfg(test)] mod tests` covers the
+/// same cases.)
 pub fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() > max {
         let truncated: String = s.chars().take(max.saturating_sub(1)).collect();
