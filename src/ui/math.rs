@@ -77,7 +77,13 @@ pub fn eval_expression(expr: &str) -> MathResult {
     }
     let parsed = match FlatEx::<f64, DrawerOpsFactory>::parse(trimmed) {
         Ok(p) => p,
-        Err(_) => return MathResult::NotMath,
+        Err(e) => {
+            // `trace` so developers can flip on parser-failure visibility
+            // (`RUST_LOG=nwg_drawer=trace`) without the user seeing a
+            // log line every time they type a non-math search.
+            log::trace!("math: parse rejected '{}': {}", trimmed, e);
+            return MathResult::NotMath;
+        }
     };
     // Pure arithmetic only — expressions with free variables (unknown
     // identifiers that aren't our registered constants) are treated as
@@ -87,7 +93,10 @@ pub fn eval_expression(expr: &str) -> MathResult {
         Ok(val) if val.is_nan() => MathResult::Error("undefined".to_string()),
         Ok(val) if val.is_infinite() => MathResult::Error("overflow".to_string()),
         Ok(val) => MathResult::Value(val),
-        Err(_) => MathResult::NotMath,
+        Err(e) => {
+            log::trace!("math: eval rejected '{}': {}", trimmed, e);
+            MathResult::NotMath
+        }
     }
 }
 
@@ -101,11 +110,21 @@ pub(super) fn format_result(value: f64) -> String {
     if value.abs() < 0.5e-6 {
         return "0".to_string();
     }
-    // Show integers without decimal point (up to i64 safe range)
+    // Show integers without decimal point — but only inside the
+    // i64-safe range. `1e15` is below `i64::MAX` (~9.22e18) by enough
+    // headroom that any whole `f64` under 1e15 round-trips through
+    // `as i64` without saturation, while still covering "practical"
+    // calculator results comfortably. Anything bigger gets scientific
+    // notation rather than risking a saturated integer cast.
     if value == value.floor() && value.abs() < 1e15 {
         format!("{}", value as i64)
     } else if value.abs() >= 1e15 || (value != 0.0 && value.abs() < 1e-4) {
         // Scientific notation for very large or very small numbers.
+        // The `1e-4` lower bound is the breakpoint where `{:.6}` runs
+        // out of significant digits — `0.00001` would render as
+        // `0.000010` and lose precision on further trimming, so we
+        // hand small magnitudes off to scientific instead. Above
+        // `1e-4`, `{:.6}` keeps four+ significant figures.
         // Only trim zeros from the mantissa, not the exponent.
         let scientific = format!("{:.6e}", value);
         if let Some((mantissa, exponent)) = scientific.split_once('e') {

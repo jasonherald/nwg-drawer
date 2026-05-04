@@ -22,6 +22,13 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 fn main() {
+    // First call before any other startup work: the singleton/identity
+    // handshake. When a second `nwg-drawer` invocation runs `--dump-args`
+    // against the resident PID to confirm "yes, that's actually us"
+    // before forwarding `--open` / `--close` via signal, this hook is
+    // what answers. Doing it on entry keeps the response cheap (no
+    // GTK init, no compositor probe) and avoids racing with the
+    // singleton lock the resident instance holds.
     nwg_common::process::handle_dump_args();
     let mut config = DrawerConfig::parse_from(config::normalize_legacy_flags(std::env::args()));
 

@@ -100,6 +100,14 @@ pub struct DrawerState {
 }
 
 impl DrawerState {
+    /// Construct a fresh state.
+    ///
+    /// `compositor` is stored as the same `Rc<dyn Compositor>` passed
+    /// in by `main`, which also keeps a clone for the launch path
+    /// (`launch_desktop_entry` → compositor IPC). Sharing the instance
+    /// avoids reopening the Hyprland/Sway socket per click and keeps
+    /// the null-fallback decision (`init_or_null`) made once at
+    /// startup applied uniformly to everything that talks to the WM.
     pub fn new(app_dirs: Vec<PathBuf>, compositor: Rc<dyn Compositor>) -> Self {
         Self {
             apps: AppRegistry::new(),
