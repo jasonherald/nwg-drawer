@@ -1,3 +1,21 @@
+//! Async file-system search dispatcher.
+//!
+//! Walks the user's XDG directories on a worker thread, debounced and
+//! generation-counted so stale results from earlier keystrokes are
+//! discarded. Lives behind a single [`FileSearchDispatcher`] instance
+//! owned by [`crate::ui::well_context::WellContext`].
+//!
+//! Pipeline:
+//! 1. `dispatch(phrase)` increments the generation counter and resets
+//!    the debounce timeout.
+//! 2. After `FILE_SEARCH_DEBOUNCE_MS` of quiet, the timeout fires,
+//!    clears its slot, and spawns an OS thread.
+//! 3. The thread walks the XDG roots and ships `(generation, rows)`
+//!    back via an `async_channel`.
+//! 4. A consumer future on the GTK main loop drops results whose
+//!    generation has been superseded; surviving results are appended
+//!    to the well by the search-mode builder.
+
 use super::constants;
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;

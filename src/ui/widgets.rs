@@ -1,3 +1,11 @@
+//! Small, reusable widget factories shared across builders.
+//!
+//! `app_icon_button` is the canonical "icon over label" launcher
+//! button used by both the app grid and the pinned row, so the two
+//! always share styling and hover/focus behavior. `apply_pin_badge`
+//! adds the small overlay dot for pinned items, and `truncate`
+//! shortens long names/tooltips at grapheme boundaries.
+
 use super::constants;
 use gtk4::prelude::*;
 use nwg_common::desktop::icons;

@@ -1,3 +1,11 @@
+//! Search-entry change handler and command-prefix dispatcher.
+//!
+//! Connects `search-changed` on the entry to the well-rebuild path:
+//! empty phrase restores the normal well, non-empty rebuilds in
+//! search mode (apps + file results + math). A small `Cell<bool>`
+//! tracks whether we are currently in search mode so the empty-phrase
+//! transition only rebuilds once.
+
 use crate::ui::well_builder;
 use crate::ui::well_context::WellContext;
 use gtk4::prelude::*;

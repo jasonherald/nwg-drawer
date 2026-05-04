@@ -1,3 +1,10 @@
+//! App-grid `FlowBox` builder.
+//!
+//! Builds the main scrollable grid of application buttons, optionally
+//! filtered by category or search phrase. Each button wires up
+//! left-click to launch and right-click to toggle pin state, plus a
+//! pin-indicator dot when the entry is pinned.
+
 use crate::config::DrawerConfig;
 use crate::state::DrawerState;
 use crate::ui::search::subsequence_match;

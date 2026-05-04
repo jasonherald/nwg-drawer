@@ -1,3 +1,12 @@
+//! Command-line configuration.
+//!
+//! Defines the `clap`-parsed [`DrawerConfig`] plus the legacy single-dash
+//! flag normalizer that lets the Rust binary accept the Go drawer's
+//! `-pbauto` / `-closebtn` / etc. without breaking existing user
+//! launchers. Multi-character single-dash flags are rewritten to
+//! `--double-dash` form before clap sees them; native single-character
+//! flags pass through unchanged.
+
 use clap::{Parser, ValueEnum};
 
 /// Known Go-style single-dash flags for the drawer binary.

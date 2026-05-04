@@ -1,3 +1,10 @@
+//! Layer-shell window setup.
+//!
+//! Anchors the drawer's `ApplicationWindow` to all four edges of the
+//! target monitor and configures the layer (overlay vs top), exclusive
+//! zone, and keyboard interactivity. Called once per monitor when the
+//! drawer activates.
+
 use crate::config::DrawerConfig;
 use gtk4_layer_shell::LayerShell;
 

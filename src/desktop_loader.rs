@@ -1,3 +1,16 @@
+//! Desktop-entry registry loader.
+//!
+//! Walks every directory in `state.app_dirs`, parses `.desktop` files
+//! via `nwg_common::desktop::entry`, and populates the [`AppRegistry`]
+//! sub-struct of [`crate::state::DrawerState`]. Categories are assigned
+//! per the freedesktop main-category list, with each entry potentially
+//! appearing in multiple category lists.
+//!
+//! `load_into` is split out from the public entry point so unit tests
+//! can drive it against a synthetic `AppRegistry` + `app_dirs` slice
+//! without constructing a full `DrawerState` (which requires a live
+//! `Compositor`).
+
 use crate::state::{AppRegistry, DrawerState};
 use nwg_common::desktop::categories::assign_categories;
 use nwg_common::desktop::dirs;

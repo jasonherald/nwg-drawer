@@ -1,3 +1,22 @@
+//! Capture-phase keyboard navigation across the drawer's FlowBox grids.
+//!
+//! GTK4's `FlowBox` exposes a `move_cursor` keybinding that's unreliable
+//! with `SelectionMode::None` and non-focusable `FlowBoxChild` wrappers
+//! — it consumes arrow keys without actually moving focus. We bypass
+//! the binding entirely by attaching a key controller in the **capture**
+//! phase (before the FlowBox sees the event) so we control which keys
+//! propagate.
+//!
+//! The controller is intentionally narrow: it consumes only Up / Down /
+//! Left / Right / Home / End / Enter / Escape. Printable characters and
+//! everything else fall through to the search entry, which is what
+//! enables type-to-search from anywhere in the drawer.
+//!
+//! Up/Down at a grid edge can jump to an adjacent FlowBox via the
+//! `up_target` / `down_target` parameters — this is how arrow keys
+//! cross between the app grid, pinned row, and category bar without
+//! the user having to Tab between them.
+
 use gtk4::prelude::*;
 
 /// Installs a capture-phase key controller on a FlowBox that handles

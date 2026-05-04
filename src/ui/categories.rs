@@ -1,3 +1,11 @@
+//! Category filter button bar.
+//!
+//! Builds the row of toggle-style buttons that filter the app grid by
+//! freedesktop main-category. The "All" button restores the unfiltered
+//! view. Selection state lives on the buttons themselves (CSS class)
+//! plus the `selected_category` field of [`crate::state::DrawerState`]
+//! so it survives rebuilds.
+
 use crate::ui;
 use crate::ui::well_context::WellContext;
 use gtk4::prelude::*;
