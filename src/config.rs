@@ -422,11 +422,14 @@ mod tests {
         assert_eq!(config.closebtn, CloseButton::None);
     }
 
-    /// Drift safeguard: every entry in `LEGACY_FLAGS` must round-trip
-    /// through `normalize_legacy_flags` to its `--double-dash` form.
-    /// Catches the case where someone removes a `clap` flag from
-    /// `DrawerConfig` but leaves the alias in `LEGACY_FLAGS` (or the
-    /// reverse).
+    /// Rewrite-table coverage: every entry in `LEGACY_FLAGS` must
+    /// round-trip through `normalize_legacy_flags` to its
+    /// `--double-dash` form. This is a normalization/text-only check —
+    /// it doesn't validate that the resulting `--flag` is actually
+    /// accepted by clap. Parser-level coverage lives in the per-flag
+    /// tests above (e.g. `legacy_flags_parse_correctly`,
+    /// `wm_flag_legacy_single_dash`, `closebtn_legacy_single_dash`,
+    /// `pin_indicator_legacy_alias`).
     #[test]
     fn every_legacy_flag_normalizes() {
         for flag in LEGACY_FLAGS {
