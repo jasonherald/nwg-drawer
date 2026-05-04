@@ -15,7 +15,7 @@ name = "nwg-drawer"
 path = "src/main.rs"
 
 [dependencies]
-# Shared library (library + binaries all on the 0.3.x line)
+# Shared library (library + binaries on the 0.5.x line)
 nwg-common = "0.5"
 
 # GTK4 + Wayland layer shell
