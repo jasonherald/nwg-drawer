@@ -101,10 +101,15 @@ mod tests {
 
     #[test]
     fn pick_first_present_preserves_prefilled_slot() {
-        // Explicit user value must never be clobbered, even if every
-        // candidate would otherwise match.
+        // Explicit user value must never be clobbered. Pass a probe
+        // that panics if called — the test fails not just on a
+        // changed slot but on any unnecessary probe call (e.g. a
+        // future short-circuit regression that walks the candidates
+        // before checking is_empty).
         let mut slot = "user-set-cmd".to_string();
-        pick_first_present(&mut slot, &["a", "b"], |_| true);
+        pick_first_present(&mut slot, &["a", "b"], |_| {
+            panic!("probe must not be called when slot is prefilled")
+        });
         assert_eq!(slot, "user-set-cmd");
     }
 
