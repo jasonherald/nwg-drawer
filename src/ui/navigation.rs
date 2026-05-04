@@ -187,11 +187,12 @@ fn nav_up(
         }
         // Target exists but is empty — fall through to widget search
     }
-    // No FlowBox target — focus nearest widget above (categories, search)
-    if focus_prev_sibling(flow) {
-        return gtk4::glib::Propagation::Stop;
-    }
-    gtk4::glib::Propagation::Proceed
+    // No FlowBox target — focus nearest widget above (categories, search).
+    // We `Stop` even when no sibling takes focus so FlowBox's broken
+    // default `move_cursor` binding doesn't get the key back and silently
+    // swallow it (this mirrors the symmetric Down path).
+    focus_prev_sibling(flow);
+    gtk4::glib::Propagation::Stop
 }
 
 /// Walks up the widget tree from `start`, looking for the nearest visible

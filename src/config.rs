@@ -414,6 +414,36 @@ mod tests {
                 .map(String::from),
         ));
         assert_eq!(config.closebtn, CloseButton::Right);
+        let config = DrawerConfig::parse_from(normalize_legacy_flags(
+            vec!["nwg-drawer", "-closebtn", "none"]
+                .into_iter()
+                .map(String::from),
+        ));
+        assert_eq!(config.closebtn, CloseButton::None);
+    }
+
+    /// Drift safeguard: every entry in `LEGACY_FLAGS` must round-trip
+    /// through `normalize_legacy_flags` to its `--double-dash` form.
+    /// Catches the case where someone removes a `clap` flag from
+    /// `DrawerConfig` but leaves the alias in `LEGACY_FLAGS` (or the
+    /// reverse).
+    #[test]
+    fn every_legacy_flag_normalizes() {
+        for flag in LEGACY_FLAGS {
+            let single = format!("-{}", flag);
+            let expected = format!("--{}", flag);
+            let normalized = normalize_legacy_flags(
+                vec!["nwg-drawer", &single, "x"]
+                    .into_iter()
+                    .map(String::from),
+            );
+            assert_eq!(
+                normalized.get(1).map(String::as_str),
+                Some(expected.as_str()),
+                "flag {} did not normalize",
+                flag
+            );
+        }
     }
 
     #[test]

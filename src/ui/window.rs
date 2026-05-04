@@ -49,7 +49,7 @@ pub fn setup_drawer_window(
 
     // Keyboard interactivity
     if config.keyboard_on_demand {
-        log::info!("Setting keyboard mode to: on-demand");
+        log::debug!("Setting keyboard mode to: on-demand");
         win.set_keyboard_mode(gtk4_layer_shell::KeyboardMode::OnDemand);
     } else {
         win.set_keyboard_mode(gtk4_layer_shell::KeyboardMode::Exclusive);
