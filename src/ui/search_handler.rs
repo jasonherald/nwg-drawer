@@ -48,9 +48,7 @@ pub fn connect_search(ctx: &WellContext) {
             // command-mode well.
             ctx.file_search.invalidate();
             ctx.state.borrow_mut().active_search.clear();
-            while let Some(child) = ctx.well.first_child() {
-                ctx.well.remove(&child);
-            }
+            well_builder::clear_box(&ctx.well);
             ctx.pinned_box.set_visible(false);
             if cmd_text.is_empty() {
                 ctx.status_label.set_text("Execute a command");
