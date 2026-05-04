@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] — 2026-05-04
 
-Code-quality refactor pass closing epic [#28](https://github.com/jasonherald/nwg-drawer/issues/28). 21 of 22 sub-issues addressed across 7 waves; integration-test issue [#50](https://github.com/jasonherald/nwg-drawer/issues/50) closed as wontfix. No public API breaks (binary-only crate); the file-search, pin-toggle, and signal-handling paths are materially faster, and the modifier-key fix in the capture-phase keyboard handler is the only intentional behavior change.
+This release improves responsiveness in file-search, pin-toggle, and signal/inotify update paths, and fixes keyboard capture behavior so modifier-only keypresses no longer steal focus.
 
 ### Changed
 
