@@ -89,10 +89,26 @@ nwg-drawer --opacity 88 --pb-auto --columns 8
 
 # Resident mode (stays in memory, toggle with signals)
 nwg-drawer -r --pb-auto
-
-# Force Sway backend (usually auto-detected)
-nwg-drawer --wm sway
 ```
+
+### Compositor backend (`--wm`)
+
+The drawer auto-detects Hyprland (via `HYPRLAND_INSTANCE_SIGNATURE`) or Sway (via `SWAYSOCK`) at startup. **Most users don't need `--wm` at all.**
+
+When you do want to override:
+
+| Value | Effect |
+|---|---|
+| _omitted_ (default) | Auto-detect from env vars; falls back to a null backend on Niri/river/Openbox/etc. |
+| `--wm hyprland` | Force the Hyprland IPC backend regardless of environment. |
+| `--wm sway` | Force the Sway IPC backend regardless of environment. |
+| `--wm uwsm` | Launch wrapper for [uwsm](https://github.com/Vladimir-csp/uwsm) (Universal Wayland Session Manager) sessions. **Compositor detection still falls through to the env vars** — this flag controls how launched apps are spawned, not which backend serves drawer IPC. |
+
+#### Note for Slackware, Void, Alpine, and other non-systemd distros
+
+`--wm uwsm` is for users running under a uwsm-managed Wayland session, which currently requires systemd. **If you're not on systemd, just don't pass `--wm uwsm` and the drawer works normally** — app launches go directly through the compositor's exec mechanism (Hyprland's `dispatch exec`, Sway's `exec`) or via `sh -c` for the null backend. No `uwsm` binary is ever invoked.
+
+The drawer has no `which uwsm` probe and no PATH check — the only place it would shell out to `uwsm` is when the user explicitly opts in with `--wm uwsm`. Even there, if the binary turns out to be missing the launcher logs a warning and falls back to direct launch (`sh -c`), so a misconfigured launcher still launches apps.
 
 ## Integration with the dock
 
