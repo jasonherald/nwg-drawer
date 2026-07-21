@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- MSRV raised `1.95` → `1.97`; `rust-toolchain.toml` now pins `1.97.1`.
+- Dependencies moved to the current release trains: `nwg-common` `0.6`,
+  `gtk4` `0.11`, `gtk4-layer-shell` `0.8`, `exmex` `0.21`. No behavior
+  changes.
+
 ## [0.4.0] — 2026-05-04
 
 This release improves responsiveness in file-search, pin-toggle, and signal/inotify update paths, and fixes keyboard capture behavior so modifier-only keypresses no longer steal focus.
