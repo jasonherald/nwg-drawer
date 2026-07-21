@@ -27,7 +27,7 @@ Ported from [nwg-piotr/nwg-drawer](https://github.com/nwg-piotr/nwg-drawer) (Go)
 
 ### Requirements
 
-- **Rust 1.95** or later (pinned in `rust-toolchain.toml`; rustup picks it up automatically)
+- **Rust 1.97** or later (pinned in `rust-toolchain.toml`; rustup picks it up automatically)
 - **GTK4** and **gtk4-layer-shell** system libraries
 - A Wayland compositor with `wlr-layer-shell` support (Hyprland, Sway, Niri, river, etc.)
 
