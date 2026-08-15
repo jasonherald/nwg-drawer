@@ -11,7 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > full pre-split history is preserved in the monorepo's git log; this file
 > only documents changes from v0.3.0 onward.
 
-## [0.5.1] — Unreleased
+## [0.5.2] — Unreleased
+
+## [0.5.1] — 2026-08-14
+
+Omarchy 4.0 "Quattro" compatibility release — app launches on Hyprland
+Lua sessions, power-bar lock detection, and Lua-config documentation.
 
 ### Fixed
 
