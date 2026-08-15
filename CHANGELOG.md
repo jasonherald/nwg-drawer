@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- App launches now work on Hyprland 0.55+ sessions using the Lua
+  configuration (Omarchy 4.0 "Quattro"). Such sessions reject the
+  legacy textual dispatcher syntax the drawer's launch path used;
+  `nwg-common` 0.7 detects the rejection, retries in the session's Lua
+  syntax (`hl.dsp.*`), and caches which one the compositor speaks.
+  Classic hyprlang sessions are unaffected.
+
 ## [0.5.0] — 2026-07-21
 
 Toolchain and dependency refresh — Rust 1.97, the gtk4 0.11 line,
