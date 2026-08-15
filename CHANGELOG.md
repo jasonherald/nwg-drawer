@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `nwg-common` 0.7 detects the rejection, retries in the session's Lua
   syntax (`hl.dsp.*`), and caches which one the compositor speaks.
   Classic hyprlang sessions are unaffected.
+- `--pb-auto` now detects the lock command on Omarchy 4.0, which no
+  longer ships a bare `hyprlock` binary. `omarchy-system-lock` heads
+  the candidate list — preferred over `hyprlock`/`swaylock` when both
+  are present, since the wrapper also locks 1Password, resets the
+  keyboard layout, and stops the screensaver.
 
 ### Added
 

@@ -32,12 +32,24 @@ pub(crate) fn auto_detect_power_bar(config: &mut DrawerConfig) {
     }
 }
 
+/// Lock-command candidates in priority order.
+///
+/// Omarchy's wrapper comes first: Omarchy 4.0 "Quattro" no longer
+/// ships a bare `hyprlock` binary (the Omarchy shell locks the
+/// session), and on setups where both exist the wrapper is the more
+/// integrated choice — it also locks 1Password, resets the keyboard
+/// layout, and stops the screensaver.
+const LOCK_CANDIDATES: &[&str] = &[
+    "omarchy-system-lock",
+    "hyprlock",
+    "swaylock",
+    "swaylock-effects",
+];
+
 /// Tries each candidate lock command and uses the first found on PATH.
 fn detect_lock(slot: &mut String) {
     let was_empty = slot.is_empty();
-    pick_first_present(slot, &["hyprlock", "swaylock", "swaylock-effects"], |cmd| {
-        command_on_path(cmd)
-    });
+    pick_first_present(slot, LOCK_CANDIDATES, command_on_path);
     if was_empty && !slot.is_empty() {
         log::info!("  Lock: {}", slot);
     }
@@ -129,6 +141,18 @@ mod tests {
         let mut slot = String::new();
         pick_first_present(&mut slot, &["a", "b"], |_| false);
         assert!(slot.is_empty());
+    }
+
+    #[test]
+    fn lock_candidates_prefer_omarchy_wrapper() {
+        // On a system where every candidate is present (e.g. Omarchy
+        // with a leftover hyprlock install), the integrated
+        // omarchy-system-lock wrapper must win — on Omarchy 4.0+ it
+        // is the only lock path, since the bare hyprlock binary is
+        // gone from PATH.
+        let mut slot = String::new();
+        pick_first_present(&mut slot, LOCK_CANDIDATES, |_| true);
+        assert_eq!(slot, "omarchy-system-lock");
     }
 
     #[test]
