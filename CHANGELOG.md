@@ -11,7 +11,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > full pre-split history is preserved in the monorepo's git log; this file
 > only documents changes from v0.3.0 onward.
 
-## [Unreleased]
+## [0.5.1] — Unreleased
+
+### Fixed
+
+- App launches now work on Hyprland 0.55+ sessions using the Lua
+  configuration (Omarchy 4.0 "Quattro"). Such sessions reject the
+  legacy textual dispatcher syntax the drawer's launch path used;
+  `nwg-common` 0.7 detects the rejection, retries in the session's Lua
+  syntax (`hl.dsp.*`), and caches which one the compositor speaks.
+  Classic hyprlang sessions are unaffected.
+- `--pb-auto` now detects the lock command on Omarchy 4.0, which no
+  longer ships a bare `hyprlock` binary. `omarchy-system-lock` heads
+  the candidate list — preferred over `hyprlock`/`swaylock` when both
+  are present, since the wrapper also locks 1Password, resets the
+  keyboard layout, and stops the screensaver.
+
+### Added
+
+- README: Hyprland Lua-config setup section — `o.launch_on_start`
+  autostart and `o.bind` keybinding on Omarchy 4.0, the raw
+  `hyprland.start` hook elsewhere — with a Quattro migration warning
+  (custom `exec-once`/`bind` lines are not carried across), plus the
+  GTK4 dmabuf DPMS-cycle crash workaround.
+- README: Theming note for configs carried over from Go `nwg-drawer` —
+  the Go-era default CSS's missing end-of-block semicolons trigger GTK4
+  parser warnings; add them, or delete the file to re-seed the current
+  default.
 
 ## [0.5.0] — 2026-07-21
 
