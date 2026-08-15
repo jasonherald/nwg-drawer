@@ -121,6 +121,56 @@ exec-once = nwg-dock -d -i 48 --mb 10 --hide-timeout 400 --launch-animation -c "
 
 Pins work bidirectionally — pin an app from the drawer (right-click → Pin) and it shows up in the dock instantly, and vice versa.
 
+## Hyprland Lua config (Omarchy 4.0 "Quattro" and other Lua setups)
+
+Hyprland 0.55+ Lua configurations don't read `autostart.conf` or
+`bindings.conf`. On Omarchy 4.0 the equivalents live in
+`~/.config/hypr/autostart.lua` and `~/.config/hypr/bindings.lua`:
+
+```lua
+-- ~/.config/hypr/autostart.lua — resident mode (optional, faster opens)
+o.launch_on_start([[env GDK_WAYLAND_DISABLE=zwp_linux_dmabuf_v1 nwg-drawer -r --opacity 88 --pb-auto]])
+
+-- ~/.config/hypr/bindings.lua — open the drawer (toggles the resident
+-- instance if one is running, spawns on-demand otherwise)
+o.bind("SUPER + D", "App drawer", "nwg-drawer --opacity 88 --pb-auto")
+```
+
+(On plain Lua setups without Omarchy's helpers, register the autostart
+command on the start hook instead:
+`hl.on("hyprland.start", function() hl.exec_cmd([[nwg-drawer -r …]]) end)`.)
+
+**Migrating to Omarchy 4.0:** the Quattro migration generates the new
+`.lua` config files but does **not** carry custom `exec-once` or `bind`
+lines across from the `.conf` files — after the upgrade a resident
+drawer (and your drawer keybinding) silently stops working until you
+re-add them in the `.lua` files as above. App launches from the drawer
+are fully functional on Lua sessions as of nwg-common 0.7, which
+retries dispatches in the session's Lua syntax automatically.
+
+### Known issue: GTK4 crash on DPMS cycles (Hyprland ≥ 0.56)
+
+GTK ≤ 4.22 has a bug in its Wayland dmabuf-feedback handler
+(`gdk/wayland/gdkdmabuf-wayland.c` munmaps the wrong pointer when the
+compositor re-sends `zwp_linux_dmabuf_feedback_v1`). Hyprland 0.56
+started re-sending that feedback every time an output is
+disabled/re-enabled, so any GTK4 client — the drawer included — can
+segfault after a DPMS off/on cycle. Resident mode is the exposed case:
+the process sits through every screen blank. Whether a given cycle
+crashes depends on heap-allocation alignment, so it strikes
+intermittently.
+
+Until a fixed GTK ships, launch the drawer with the dmabuf protocol
+disabled (as in the Lua snippet above, or the classic equivalent):
+
+```ini
+# ~/.config/hypr/autostart.conf
+exec-once = env GDK_WAYLAND_DISABLE=zwp_linux_dmabuf_v1 nwg-drawer -r --opacity 88 --pb-auto
+```
+
+The drawer doesn't use dmabuf texture import or graphics offload, so
+the only effect of the switch is dodging the crash.
+
 ## Signal control (resident mode only)
 
 ```bash

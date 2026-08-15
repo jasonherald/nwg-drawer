@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   syntax (`hl.dsp.*`), and caches which one the compositor speaks.
   Classic hyprlang sessions are unaffected.
 
+### Added
+
+- README: Hyprland Lua-config setup section — `o.launch_on_start`
+  autostart and `o.bind` keybinding on Omarchy 4.0, the raw
+  `hyprland.start` hook elsewhere — with a Quattro migration warning
+  (custom `exec-once`/`bind` lines are not carried across), plus the
+  GTK4 dmabuf DPMS-cycle crash workaround.
+
 ## [0.5.0] — 2026-07-21
 
 Toolchain and dependency refresh — Rust 1.97, the gtk4 0.11 line,
