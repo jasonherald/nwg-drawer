@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > full pre-split history is preserved in the monorepo's git log; this file
 > only documents changes from v0.3.0 onward.
 
-## [Unreleased]
+## [0.5.1] — Unreleased
 
 ### Fixed
 
@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `hyprland.start` hook elsewhere — with a Quattro migration warning
   (custom `exec-once`/`bind` lines are not carried across), plus the
   GTK4 dmabuf DPMS-cycle crash workaround.
+- README: Theming note for configs carried over from Go `nwg-drawer` —
+  the Go-era default CSS's missing end-of-block semicolons trigger GTK4
+  parser warnings; add them, or delete the file to re-seed the current
+  default.
 
 ## [0.5.0] — 2026-07-21
 

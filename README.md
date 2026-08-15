@@ -125,7 +125,9 @@ Pins work bidirectionally — pin an app from the drawer (right-click → Pin) a
 
 Hyprland 0.55+ Lua configurations don't read `autostart.conf` or
 `bindings.conf`. On Omarchy 4.0 the equivalents live in
-`~/.config/hypr/autostart.lua` and `~/.config/hypr/bindings.lua`:
+`~/.config/hypr/autostart.lua` and `~/.config/hypr/bindings.lua`,
+using the `o.*` helpers that Omarchy's stock `hyprland.lua` already
+loads — nothing extra to `require`:
 
 ```lua
 -- ~/.config/hypr/autostart.lua — resident mode (optional, faster opens)
@@ -133,12 +135,19 @@ o.launch_on_start([[env GDK_WAYLAND_DISABLE=zwp_linux_dmabuf_v1 nwg-drawer -r --
 
 -- ~/.config/hypr/bindings.lua — open the drawer (toggles the resident
 -- instance if one is running, spawns on-demand otherwise)
-o.bind("SUPER + D", "App drawer", "nwg-drawer --opacity 88 --pb-auto")
+o.bind("SUPER + D", "App drawer", "env GDK_WAYLAND_DISABLE=zwp_linux_dmabuf_v1 nwg-drawer --opacity 88 --pb-auto")
 ```
 
-(On plain Lua setups without Omarchy's helpers, register the autostart
-command on the start hook instead:
-`hl.on("hyprland.start", function() hl.exec_cmd([[nwg-drawer -r …]]) end)`.)
+On plain Lua setups without Omarchy, Hyprland loads only
+`~/.config/hypr/hyprland.lua` (pull other files in with `require`).
+Register the command on the start hook there — this is exactly what
+Omarchy's `o.launch_on_start` wraps:
+
+```lua
+hl.on("hyprland.start", function()
+    hl.exec_cmd([[env GDK_WAYLAND_DISABLE=zwp_linux_dmabuf_v1 nwg-drawer -r --opacity 88 --pb-auto]])
+end)
+```
 
 **Migrating to Omarchy 4.0:** the Quattro migration generates the new
 `.lua` config files but does **not** carry custom `exec-once` or `bind`
@@ -169,7 +178,9 @@ exec-once = env GDK_WAYLAND_DISABLE=zwp_linux_dmabuf_v1 nwg-drawer -r --opacity 
 ```
 
 The drawer doesn't use dmabuf texture import or graphics offload, so
-the only effect of the switch is dodging the crash.
+the practical effect of the switch is dodging the crash. GTK does fall
+back to shared-memory buffers — a different rendering path — but for a
+simple 2D surface like the drawer there is no noticeable cost.
 
 ## Signal control (resident mode only)
 
@@ -189,6 +200,14 @@ pkill -f -37 nwg-drawer     # SIGRTMIN+3
 The drawer loads CSS from `~/.config/nwg-drawer/drawer.css`. Changes are picked up instantly via live file-change detection — no restart or signal needed. Hot-reload follows the full `@import` graph, so [tinty](https://github.com/tinted-theming/tinty) and similar theme managers work out of the box.
 
 Override the path with `-s /path/to/custom.css`.
+
+> **Config carried over from Go `nwg-drawer` (or a pre-v0.4.0 install)?**
+> An existing `~/.config/nwg-drawer/drawer.css` is never touched — it
+> keeps working as your override. The old Go-era default omitted the
+> `;` after each block's last declaration, which GTK4's parser flags
+> with `Expected ';' at end of block` warnings on every (re)load. Add
+> the missing semicolons, or delete the file to have the current
+> default re-seeded on next launch.
 
 ### base16 themes via tinty
 
